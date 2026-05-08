@@ -806,21 +806,30 @@ class DailyChecklistSettingTab extends PluginSettingTab {
     const addClSetting = new Setting(containerEl).addButton(btn => btn
       .setButtonText("+ Add item")
       .onClick(() => {
-        const inputRow = createDiv({ cls: "dc-checklist-row" });
-        const input = inputRow.createEl("input") as HTMLInputElement;
+        // Build a temporary Setting row at the end of clList so it inherits
+        // the same card styling, drag-handle column, and right-side button
+        // slot as the existing checklist item rows. The unsaved item is not
+        // draggable, so the drag-handle slot is an empty placeholder.
+        const tempSetting = new Setting(clList);
+        const grip = tempSetting.settingEl.createEl("span", { cls: "dc-drag-handle dc-row-spacer" });
+        tempSetting.settingEl.prepend(grip);
+
+        tempSetting.nameEl.empty();
+        const input = tempSetting.nameEl.createEl("input") as HTMLInputElement;
         input.type = "text";
         input.placeholder = "New item…";
-        input.className = "dc-checklist-edit-input";
-        addClSetting.settingEl.after(inputRow);
-        input.focus();
+        input.className = "dc-checklist-edit-input dc-settings-add-input";
 
         let done = false;
         const finish = (save: boolean) => {
           if (done) return;
           done = true;
-          const val = input.value.trim();
-          inputRow.remove();
-          if (save && val) {
+          const val = save ? input.value.trim() : "";
+          if (val) {
+            // Leave the temp row in place — renderClList() will clear and
+            // rebuild the items list in one pass, replacing the temp row
+            // with the saved row without an intermediate empty frame
+            // (which would briefly push the "+ Add item" button upward).
             this.plugin.resetIfNewDay();
             this.plugin.settings.checklistItems.push(val);
             this.plugin.saveSettings().then(() => {
@@ -828,13 +837,24 @@ class DailyChecklistSettingTab extends PluginSettingTab {
               this.plugin.refreshViews();
               rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
             });
+          } else {
+            tempSetting.settingEl.remove();
           }
         };
+
+        tempSetting.addButton(btn2 => {
+          btn2.setButtonText("Delete").setWarning().onClick(() => finish(false));
+          // mousedown.preventDefault keeps focus on the input so the click
+          // doesn't trigger blur->finish(true) before finish(false) runs.
+          btn2.buttonEl.addEventListener("mousedown", (e) => e.preventDefault());
+        });
+
         input.addEventListener("blur", () => finish(true));
         input.addEventListener("keydown", (e: KeyboardEvent) => {
           if (e.key === "Enter")  { e.preventDefault(); finish(true); }
           if (e.key === "Escape") { finish(false); }
         });
+        input.focus();
       })
     );
     addClSetting.settingEl.addClass("dc-settings-action-row");

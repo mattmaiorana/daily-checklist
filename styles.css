@@ -224,6 +224,13 @@
   pointer-events: none;
 }
 
+/* Settings-tab "+ Add item" temporary row: input fills the name slot so it
+   visually replaces the item label inside the existing setting card. */
+.dc-settings-add-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* ── Settings input suggest ─────────────────────────────────────────────── */
 /* Visual styling is inherited from Obsidian's native .suggestion-container /
    .suggestion-item / .is-selected classes. The rules here only add the bits
