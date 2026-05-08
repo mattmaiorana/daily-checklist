@@ -596,13 +596,29 @@ class DailyChecklistView extends ItemView {
       addBtn.onclick = () => {
         addBtn.remove();
         const addRow = container.createEl("div", { cls: "dc-checklist-row" });
+        // Reserve the same left-side columns as an existing edit row so the
+        // input aligns horizontally with the rename inputs above it. The drag
+        // handle is a layout-only placeholder — the new item isn't draggable
+        // until it has been saved.
+        if (!this.isTouchDevice) {
+          addRow.createEl("span", { cls: "dc-drag-handle dc-row-spacer" });
+        }
+        const cancelBtn = addRow.createEl("button", {
+          cls: "dc-icon-btn dc-delete-btn",
+          text: "✕",
+          attr: { "aria-label": "Cancel" },
+        });
         const input = addRow.createEl("input") as HTMLInputElement;
         input.type = "text";
         input.placeholder = "New item…";
         input.className = "dc-checklist-edit-input";
         input.focus();
-        const commit = () => {
-          const val = input.value.trim();
+
+        let done = false;
+        const finish = (save: boolean) => {
+          if (done) return;
+          done = true;
+          const val = save ? input.value.trim() : "";
           if (val) {
             this.plugin.resetIfNewDay();
             this.plugin.settings.checklistItems.push(val);
@@ -614,11 +630,16 @@ class DailyChecklistView extends ItemView {
             this.renderChecklistItems(container, true, editBtn);
           }
         };
-        input.onblur = commit;
+
+        input.onblur = () => finish(true);
         input.onkeydown = (e: KeyboardEvent) => {
-          if (e.key === "Enter") { input.blur(); }
-          if (e.key === "Escape") { input.value = ""; input.blur(); }
+          if (e.key === "Enter")  { e.preventDefault(); input.blur(); }
+          if (e.key === "Escape") { finish(false); }
         };
+        // mousedown.preventDefault keeps focus on the input so the click
+        // doesn't fire a blur->finish(true) before our finish(false) runs.
+        cancelBtn.addEventListener("mousedown", (e) => e.preventDefault());
+        cancelBtn.onclick = (e) => { e.preventDefault(); finish(false); };
       };
     }
   }

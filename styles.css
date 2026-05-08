@@ -213,6 +213,17 @@
   color: var(--text-normal);
 }
 
+/* ── Add-item row drag-handle placeholder ────────────────────────────────── */
+/* The "+ Add item" inline input row reuses .dc-drag-handle for the leftmost
+   column so its input aligns horizontally with the rename inputs in existing
+   edit rows. The new item isn't draggable until saved, so the placeholder is
+   visually empty (no icon) and not interactive. */
+
+.dc-row-spacer {
+  cursor: default;
+  pointer-events: none;
+}
+
 /* ── Settings input suggest ─────────────────────────────────────────────── */
 /* Visual styling is inherited from Obsidian's native .suggestion-container /
    .suggestion-item / .is-selected classes. The rules here only add the bits
