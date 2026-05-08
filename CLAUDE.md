@@ -36,6 +36,7 @@ A focused Obsidian sidebar plugin for a lightweight daily checklist.
 ### Settings
 
 - **Enable daily checklist** — toggles whether the sidebar section renders.
+- **Open sidebar on startup** — toggle. **Default: `true`.** When on, the plugin calls `app.workspace.onLayoutReady(() => this.activateView())` from `onload` so the Daily Checklist view opens in the right sidebar once the workspace finishes restoring. **Safety:** the auto-open path goes through `activateView` → workspace `setViewState` → `view.onOpen` → `render`, none of which call `rewriteChecklistSection`, `getOrCreateDailyNote`, or any vault-write API. The only persisted side effect is the existing render-time `resetIfNewDay()`, which writes `data.json` only — never a daily note. Auto-open does not create today's daily note.
 - **Write checklist to daily note** — gates all daily-note writes.
 - **Daily note callout type** — text; the string inside `[!type]` (default `todo`).
 - **Daily note callout title** — text; the title shown after the marker (default `Daily Checklist`).

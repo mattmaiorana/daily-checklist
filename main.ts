@@ -29,6 +29,7 @@ interface ChecklistState {
 
 interface DailyChecklistSettings {
   showChecklist: boolean;
+  openSidebarOnStartup: boolean;
   writeChecklistToDailyNote: boolean;
   dailyNoteCalloutType: string;
   dailyNoteCalloutTitle: string;
@@ -52,6 +53,7 @@ const DEFAULT_CHECKLIST: string[] = [
 
 const DEFAULT_SETTINGS: DailyChecklistSettings = {
   showChecklist: true,
+  openSidebarOnStartup: true,
   writeChecklistToDailyNote: true,
   dailyNoteCalloutType: "todo",
   dailyNoteCalloutTitle: "Daily Checklist",
@@ -728,6 +730,17 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Open sidebar on startup")
+      .setDesc("Automatically open the Daily Checklist view when Obsidian starts.")
+      .addToggle(t => t
+        .setValue(this.plugin.settings.openSidebarOnStartup)
+        .onChange(async v => {
+          this.plugin.settings.openSidebarOnStartup = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
       .setName("Write checklist to daily note")
       .setDesc("Update the Daily Checklist callout in your daily note when items change.")
       .addToggle(t => t
@@ -1010,6 +1023,17 @@ export default class DailyChecklistPlugin extends Plugin {
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     this.register(() => document.removeEventListener("visibilitychange", onVisibilityChange));
+
+    // Optional auto-open on startup. Wait for layout-ready so the workspace
+    // has fully restored its leaves before we ask for the right sidebar —
+    // otherwise activateView could race with workspace restoration and
+    // create a duplicate leaf. activateView itself early-returns when a
+    // Daily Checklist leaf already exists, and never writes to any note.
+    if (this.settings.openSidebarOnStartup) {
+      this.app.workspace.onLayoutReady(() => {
+        this.activateView();
+      });
+    }
   }
 
   onunload(): void {
@@ -1062,6 +1086,13 @@ export default class DailyChecklistPlugin extends Plugin {
       if (!isPlainObject(checked)) {
         this.settings.checklistState = { date: rawState.date, checked: {} };
       }
+    }
+
+    // ── Boolean toggles ───────────────────────────────────────────────────
+    // A non-boolean persisted value (e.g. via hand-edit) falls back to the
+    // default rather than triggering implicit truthy/falsy coercion.
+    if (typeof this.settings.openSidebarOnStartup !== "boolean") {
+      this.settings.openSidebarOnStartup = DEFAULT_SETTINGS.openSidebarOnStartup;
     }
 
     // ── Callout-config string fields ──────────────────────────────────────
