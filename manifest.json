@@ -1,7 +1,7 @@
 {
   "id": "daily-checklist",
   "name": "Daily Checklist",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "minAppVersion": "1.0.0",
   "description": "A minimal sidebar checklist for daily routines, with optional sync to your daily note.",
   "author": "Matt Maiorana",

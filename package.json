@@ -1,6 +1,6 @@
 {
   "name": "daily-checklist",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Obsidian Daily Checklist Plugin",
   "main": "main.js",
   "scripts": {
