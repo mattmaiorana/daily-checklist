@@ -13,5 +13,5 @@
     "lib": ["ES2018", "DOM"]
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "_reference"]
+  "exclude": ["node_modules"]
 }

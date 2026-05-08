@@ -85,6 +85,8 @@ These are non-negotiable:
 - **Apply template content only at creation time.** Existing notes are never re-templated.
 - **Create missing parent folders** safely (one segment at a time, with race-tolerance on `EEXIST`).
 - **No marker comments** (`<!-- ... -->`) for section boundaries. The callout header line is the sole marker.
+- **Reject unsafe paths.** `isSafeVaultPath` blocks any path containing a `..` segment or that is empty after trimming. The daily-note path and the template path are both validated before any vault operation. On rejection, a `Notice` is shown and the write is aborted; the plugin will not silently "fix" or fall back to a different location.
+- **Sanitize emitted item text.** `sanitizeChecklistItemForCallout` strips CR/LF (replaces with a single space) and trims, before any item appears in a callout body line. The map key (`checklistState.checked[item]`) stays raw — only the rendered line is sanitized — so this cannot decouple a row's checked state from its identity.
 
 ## 5. Daily note path / template behavior
 
@@ -98,7 +100,11 @@ These are non-negotiable:
 
 - **`data.json`** — runtime state (settings + checklistItems + checklistState). Gitignored.
 - **`main.js`** — esbuild output. Gitignored. Always rebuild before testing in Obsidian; the harness loads `main.js`, not `main.ts`.
-- **Settings merge:** `Object.assign({}, DEFAULT_SETTINGS, saved)` is shallow. After it, `checklistItems` and `checklistState` are reseeded only when the saved key is `undefined` — empty arrays / empty objects are preserved as user-meaningful state. The three callout-config fields are sanitized: non-string or empty values fall back to defaults; an unrecognized fold state falls back to `collapsed`.
+- **Settings merge:** `Object.assign({}, DEFAULT_SETTINGS, saved)` is shallow. After it:
+  - `checklistItems` is reseeded if the saved key is `undefined`; if it's a non-array, it is reseeded; if it's an array, non-string entries are filtered out (empty arrays preserved as user-meaningful state).
+  - `checklistState` is reseeded if missing, or if the saved value is not a plain object with a string `date`. If `date` is valid but `checked` is malformed (missing / non-object / array), `checked` is reset to `{}` while preserving `date`.
+  - The three callout-config fields are sanitized: non-string or empty values fall back to defaults; an unrecognized fold state falls back to `collapsed`.
+  - These guards make a hand-corrupted `data.json` unable to crash the renderer or the writer.
 - **Daily reset:** plugin-level `resetIfNewDay()` mutates `checklistState` in memory and returns `true` if the local date rolled over. Persistence is the caller's responsibility, so a reset batches into the same `saveSettings()` call as the triggering mutation. The view's `render()` runs `resetIfNewDay()` and persists with a fire-and-forget `saveSettings()` — no daily-note write on render.
 - **Drag-and-drop:** disabled on touch via `navigator.maxTouchPoints`. The drag handle is a separate grip; `mousedown` on the grip gates `dragstart` so the rest of the row stays click-friendly.
 - **Inline inputs only.** No `window.prompt` / `alert` / `confirm` (unsupported on Obsidian mobile).

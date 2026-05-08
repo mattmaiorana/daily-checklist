@@ -94,6 +94,30 @@ function formatDateForPath(folder: string, fmt: string, date: Date = new Date())
   return normalized.endsWith(".md") ? normalized : `${normalized}.md`;
 }
 
+// Reject paths that would escape the vault root via `..` segments, or that
+// have empty/whitespace segments. Obsidian's `normalizePath` collapses
+// slashes but does NOT resolve `..`, so on desktop the FileSystemAdapter
+// could otherwise join a `..` path against the vault basePath and land
+// outside the vault. We refuse such paths up-front rather than try to
+// "fix" them silently.
+function isSafeVaultPath(path: string): boolean {
+  if (typeof path !== "string") return false;
+  const trimmed = path.trim();
+  if (trimmed === "") return false;
+  for (const seg of trimmed.split("/")) {
+    if (seg === "..") return false;
+  }
+  return true;
+}
+
+// Strip newlines from item text before emitting a callout body line. Single-
+// line `<input type="text">` strips newlines on paste already, so this is a
+// hand-edit / corruption guard — a `\n` in an emitted body line would
+// terminate the callout extent and orphan a fragment in the daily note.
+function sanitizeChecklistItemForCallout(item: string): string {
+  return String(item ?? "").replace(/[\r\n]+/g, " ").trim();
+}
+
 async function ensureParentFolderExists(app: App, path: string): Promise<void> {
   const segments = path.split("/");
   segments.pop(); // drop basename
@@ -122,6 +146,14 @@ async function getOrCreateDailyNote(
   date: Date = new Date()
 ): Promise<TFile> {
   const path = formatDateForPath(settings.dailyNoteFolder, settings.dailyNoteDateFormat, date);
+  if (!isSafeVaultPath(path)) {
+    new Notice(
+      `Daily Checklist: refusing to write — daily note path "${path}" is unsafe ` +
+      `(contains ".." or is empty). Check the daily notes folder and date format settings.`
+    );
+    throw new Error(`Daily Checklist: unsafe daily note path: ${path}`);
+  }
+
   const existing = app.vault.getAbstractFileByPath(path);
   if (existing instanceof TFile) return existing;
 
@@ -129,11 +161,18 @@ async function getOrCreateDailyNote(
   const tmplRaw = settings.dailyNoteTemplatePath?.trim();
   if (tmplRaw) {
     const tmplPath = normalizePath(tmplRaw);
-    const tmpl = app.vault.getAbstractFileByPath(tmplPath);
-    if (tmpl instanceof TFile) {
-      content = await app.vault.read(tmpl);
+    if (!isSafeVaultPath(tmplPath)) {
+      new Notice(
+        `Daily Checklist: ignoring template — path "${tmplPath}" is unsafe ` +
+        `(contains ".." or is empty). New daily note will be empty.`
+      );
     } else {
-      new Notice("Daily Checklist: template file not found, creating empty note.");
+      const tmpl = app.vault.getAbstractFileByPath(tmplPath);
+      if (tmpl instanceof TFile) {
+        content = await app.vault.read(tmpl);
+      } else {
+        new Notice("Daily Checklist: template file not found, creating empty note.");
+      }
     }
   }
 
@@ -165,7 +204,11 @@ async function rewriteChecklistSection(
   const itemLines: string[] = [];
   for (const item of settings.checklistItems) {
     const mark = settings.checklistState.checked[item] ? "x" : " ";
-    itemLines.push(`> - [${mark}] ${item}`);
+    // Sanitize the emitted text so a corrupted/hand-edited item name
+    // containing CR/LF can't terminate the callout extent. The map key
+    // (`item`) stays raw — only the rendered line is sanitized.
+    const safeText = sanitizeChecklistItemForCallout(item);
+    itemLines.push(`> - [${mark}] ${safeText}`);
   }
 
   await app.vault.process(file, (content) => {
@@ -987,12 +1030,43 @@ export default class DailyChecklistPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+
+    // ── checklistItems ────────────────────────────────────────────────────
     // Defaults seed only on first run (no saved key). An empty array is a
-    // user-meaningful state and is preserved.
-    if (!saved?.checklistItems) this.settings.checklistItems = [...DEFAULT_CHECKLIST];
-    if (!saved?.checklistState) this.settings.checklistState = { date: "", checked: {} };
-    // Sanitize the configurable callout header fields. Empty/whitespace falls
-    // back to defaults; an unrecognized fold state falls back to "collapsed".
+    // user-meaningful state and is preserved. If the saved value is present
+    // but not a valid array, fall back to defaults; if it's an array
+    // containing non-string entries, keep only the strings.
+    if (!saved?.checklistItems) {
+      this.settings.checklistItems = [...DEFAULT_CHECKLIST];
+    } else if (!Array.isArray(this.settings.checklistItems)) {
+      this.settings.checklistItems = [...DEFAULT_CHECKLIST];
+    } else {
+      this.settings.checklistItems = this.settings.checklistItems
+        .filter((x: unknown): x is string => typeof x === "string");
+    }
+
+    // ── checklistState ────────────────────────────────────────────────────
+    // Must be a plain object with a string `date` and an object `checked`.
+    // Anything malformed → safe empty state for today's first mutation to
+    // populate.
+    const rawState: unknown = this.settings.checklistState;
+    const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+      !!v && typeof v === "object" && !Array.isArray(v);
+
+    if (!saved?.checklistState) {
+      this.settings.checklistState = { date: "", checked: {} };
+    } else if (!isPlainObject(rawState) || typeof rawState.date !== "string") {
+      this.settings.checklistState = { date: "", checked: {} };
+    } else {
+      const checked = rawState.checked;
+      if (!isPlainObject(checked)) {
+        this.settings.checklistState = { date: rawState.date, checked: {} };
+      }
+    }
+
+    // ── Callout-config string fields ──────────────────────────────────────
+    // Empty/whitespace falls back to defaults; an unrecognized fold state
+    // falls back to "collapsed".
     if (typeof this.settings.dailyNoteCalloutType !== "string"
         || !this.settings.dailyNoteCalloutType.trim()) {
       this.settings.dailyNoteCalloutType = "todo";
