@@ -17,7 +17,11 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VIEW_TYPE = "daily-checklist-view";
+// Default header (collapsed). Used when appending a new callout. The plugin
+// also matches the open form `> [!todo]+ Daily Checklist` for in-place
+// replacement, but only these two exact headers — see rewriteChecklistSection.
 const CHECKLIST_CALLOUT_HEADER = "> [!todo]- Daily Checklist";
+const CHECKLIST_CALLOUT_HEADER_OPEN = "> [!todo]+ Daily Checklist";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -139,31 +143,40 @@ async function rewriteChecklistSection(
   if (!settings.writeChecklistToDailyNote) return;
   const file = await getOrCreateDailyNote(app, settings);
 
-  const calloutLines: string[] = [CHECKLIST_CALLOUT_HEADER];
+  const itemLines: string[] = [];
   for (const item of settings.checklistItems) {
     const mark = settings.checklistState.checked[item] ? "x" : " ";
-    calloutLines.push(`> - [${mark}] ${item}`);
+    itemLines.push(`> - [${mark}] ${item}`);
   }
 
   await app.vault.process(file, (content) => {
     const lines = content.split("\n");
     // Tolerate trailing whitespace on the header line, but otherwise require
-    // an exact match — we don't want to claim ownership of `> [!todo]+ ...`,
-    // a different title, or any unrelated callout.
-    const calloutStart = lines.findIndex(l => l.trimEnd() === CHECKLIST_CALLOUT_HEADER);
+    // an exact match against one of the two managed headers — we don't claim
+    // ownership of any other callout type, title, or fold marker.
+    const calloutStart = lines.findIndex(l => {
+      const trimmed = l.trimEnd();
+      return trimmed === CHECKLIST_CALLOUT_HEADER || trimmed === CHECKLIST_CALLOUT_HEADER_OPEN;
+    });
 
     if (calloutStart !== -1) {
+      // Preserve the user's existing fold marker so we don't flip an open
+      // callout closed (or vice versa) just by writing it.
+      const existingHeader = lines[calloutStart].trimEnd() === CHECKLIST_CALLOUT_HEADER_OPEN
+        ? CHECKLIST_CALLOUT_HEADER_OPEN
+        : CHECKLIST_CALLOUT_HEADER;
       // Callout extent = consecutive lines beginning with ">" starting at the
       // header. Stops at the first non-callout line.
       let calloutEnd = calloutStart + 1;
       while (calloutEnd < lines.length && lines[calloutEnd].startsWith(">")) calloutEnd++;
-      lines.splice(calloutStart, calloutEnd - calloutStart, ...calloutLines);
+      lines.splice(calloutStart, calloutEnd - calloutStart, existingHeader, ...itemLines);
       return lines.join("\n");
     }
 
-    // Callout doesn't exist — append to end of file. For empty/blank notes
-    // (e.g. brand-new untemplated notes), don't leave leading blank lines.
-    const callout = calloutLines.join("\n") + "\n";
+    // Callout doesn't exist — append a fresh one using the default collapsed
+    // header. For empty/blank notes (e.g. brand-new untemplated notes),
+    // don't leave leading blank lines.
+    const callout = [CHECKLIST_CALLOUT_HEADER, ...itemLines].join("\n") + "\n";
     if (content.trim() === "") return callout;
     return content.trimEnd() + `\n\n${callout}`;
   });
