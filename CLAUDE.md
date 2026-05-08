@@ -35,7 +35,17 @@ What is **explicitly excluded** in Phase 1:
 
 ## 4. Daily note output format
 
-Only one region is managed:
+The plugin manages exactly one region: an Obsidian callout whose header is generated from settings. The plugin is **callout-only** — it does not manage plain markdown headings (e.g. `## Daily Checklist`) and there are no plans to.
+
+The header is built by `buildCalloutHeader(settings)` from three configurable fields:
+
+| Setting key                     | Default          | Notes                                                  |
+|---------------------------------|------------------|--------------------------------------------------------|
+| `dailyNoteCalloutType`          | `todo`           | The string inside `[!...]`. Stored without brackets or `!`. Blank → `todo`. |
+| `dailyNoteCalloutTitle`         | `Daily Checklist`| The title shown after the marker. Blank → `Daily Checklist`. |
+| `dailyNoteCalloutFoldState`     | `collapsed`      | `collapsed` writes `-`, `open` writes `+`. Anything else → `collapsed`. |
+
+Examples (body shown for context — the plugin owns the body and rewrites it whole):
 
 ```
 > [!todo]- Daily Checklist
@@ -43,15 +53,22 @@ Only one region is managed:
 > - [x] Item
 ```
 
-- Header line must match `> [!todo]- Daily Checklist` **exactly** to be detected and updated in place.
-- Callout extent = the run of consecutive `>`-prefixed lines starting at the header. Stops at the first line that does not start with `>`.
-- The plugin owns everything inside the callout. Don't put hand-written content there.
+```
+> [!check]+ Evening Routine
+> - [ ] Item
+```
+
+**Exact-match (Option A) detection.** The plugin only ever looks for the line `buildCalloutHeader(settings)` produces *right now*. Trailing whitespace on the candidate line is tolerated (`trimEnd()`). No other callout type, title, or fold marker is matched — even ones the plugin itself wrote in the past under different settings.
+
+**Boundary.** Callout extent = the run of consecutive `>`-prefixed lines starting at the matched header line. Replacement stops at the first following line that does not start with `>`. Content after that boundary is never touched.
+
+**Behavior on settings change.** If you change the type, title, or fold state, the plugin will no longer match the previously-written callout. On the next explicit checklist mutation, the new configured callout will be **appended** to today's daily note. The old callout is left in place — it must be deleted manually if undesired. This is intentional: the rule "only manage the exact configured callout" is preserved without any heuristic match.
 
 ## 5. Daily note safety rules
 
 These are non-negotiable:
 
-- **Only write the exact callout** `> [!todo]- Daily Checklist`. Never modify plain `## Daily Checklist` headings, unrelated callouts, or any other content.
+- **Only write the exact configured callout.** Header = `buildCalloutHeader(settings)`. Never modify plain `## Daily Checklist` (or similar) headings, any other callout type/title/fold marker, or any other content.
 - **Replace in place** when the callout exists. **Append at end of file** when it doesn't.
 - **Never overwrite an existing daily note.** `getOrCreateDailyNote` only creates if missing; if a race created it first, return the existing file.
 - **Apply template content only at creation time.** Existing notes are never re-templated.

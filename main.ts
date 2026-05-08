@@ -17,13 +17,10 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const VIEW_TYPE = "daily-checklist-view";
-// Default header (collapsed). Used when appending a new callout. The plugin
-// also matches the open form `> [!todo]+ Daily Checklist` for in-place
-// replacement, but only these two exact headers — see rewriteChecklistSection.
-const CHECKLIST_CALLOUT_HEADER = "> [!todo]- Daily Checklist";
-const CHECKLIST_CALLOUT_HEADER_OPEN = "> [!todo]+ Daily Checklist";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+
+type CalloutFoldState = "collapsed" | "open";
 
 interface ChecklistState {
   date: string;
@@ -33,6 +30,9 @@ interface ChecklistState {
 interface DailyChecklistSettings {
   showChecklist: boolean;
   writeChecklistToDailyNote: boolean;
+  dailyNoteCalloutType: string;
+  dailyNoteCalloutTitle: string;
+  dailyNoteCalloutFoldState: CalloutFoldState;
   dailyNoteFolder: string;
   dailyNoteDateFormat: string;
   dailyNoteTemplatePath: string;
@@ -53,12 +53,25 @@ const DEFAULT_CHECKLIST: string[] = [
 const DEFAULT_SETTINGS: DailyChecklistSettings = {
   showChecklist: true,
   writeChecklistToDailyNote: true,
+  dailyNoteCalloutType: "todo",
+  dailyNoteCalloutTitle: "Daily Checklist",
+  dailyNoteCalloutFoldState: "collapsed",
   dailyNoteFolder: "Daily Notes",
   dailyNoteDateFormat: "YYYY-MM-DD",
   dailyNoteTemplatePath: "",
   checklistItems: DEFAULT_CHECKLIST,
   checklistState: { date: "", checked: {} },
 };
+
+// Build the exact callout header the plugin manages, from current settings.
+// This single string is both the line we emit on write and the line we look
+// for on read — exact-match (with trailing whitespace tolerated).
+function buildCalloutHeader(settings: DailyChecklistSettings): string {
+  const type = settings.dailyNoteCalloutType.trim() || "todo";
+  const title = settings.dailyNoteCalloutTitle.trim() || "Daily Checklist";
+  const fold = settings.dailyNoteCalloutFoldState === "open" ? "+" : "-";
+  return `> [!${type}]${fold} ${title}`;
+}
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -143,6 +156,12 @@ async function rewriteChecklistSection(
   if (!settings.writeChecklistToDailyNote) return;
   const file = await getOrCreateDailyNote(app, settings);
 
+  // The configured header is the single source of truth. We do not match any
+  // other callout type, title, or fold marker — and we re-emit exactly this
+  // header on replace, so changing settings will cause the next write to
+  // append a new callout rather than flipping an old one's marker.
+  const header = buildCalloutHeader(settings);
+
   const itemLines: string[] = [];
   for (const item of settings.checklistItems) {
     const mark = settings.checklistState.checked[item] ? "x" : " ";
@@ -151,32 +170,24 @@ async function rewriteChecklistSection(
 
   await app.vault.process(file, (content) => {
     const lines = content.split("\n");
-    // Tolerate trailing whitespace on the header line, but otherwise require
-    // an exact match against one of the two managed headers — we don't claim
-    // ownership of any other callout type, title, or fold marker.
-    const calloutStart = lines.findIndex(l => {
-      const trimmed = l.trimEnd();
-      return trimmed === CHECKLIST_CALLOUT_HEADER || trimmed === CHECKLIST_CALLOUT_HEADER_OPEN;
-    });
+    // Exact-match (trailing whitespace tolerated). No regex, no startsWith —
+    // we only claim ownership of the line that exactly equals the configured
+    // header.
+    const calloutStart = lines.findIndex(l => l.trimEnd() === header);
 
     if (calloutStart !== -1) {
-      // Preserve the user's existing fold marker so we don't flip an open
-      // callout closed (or vice versa) just by writing it.
-      const existingHeader = lines[calloutStart].trimEnd() === CHECKLIST_CALLOUT_HEADER_OPEN
-        ? CHECKLIST_CALLOUT_HEADER_OPEN
-        : CHECKLIST_CALLOUT_HEADER;
       // Callout extent = consecutive lines beginning with ">" starting at the
       // header. Stops at the first non-callout line.
       let calloutEnd = calloutStart + 1;
       while (calloutEnd < lines.length && lines[calloutEnd].startsWith(">")) calloutEnd++;
-      lines.splice(calloutStart, calloutEnd - calloutStart, existingHeader, ...itemLines);
+      lines.splice(calloutStart, calloutEnd - calloutStart, header, ...itemLines);
       return lines.join("\n");
     }
 
-    // Callout doesn't exist — append a fresh one using the default collapsed
-    // header. For empty/blank notes (e.g. brand-new untemplated notes),
-    // don't leave leading blank lines.
-    const callout = [CHECKLIST_CALLOUT_HEADER, ...itemLines].join("\n") + "\n";
+    // Callout doesn't exist — append using the configured header. For
+    // empty/blank notes (e.g. brand-new untemplated notes), don't leave
+    // leading blank lines.
+    const callout = [header, ...itemLines].join("\n") + "\n";
     if (content.trim() === "") return callout;
     return content.trimEnd() + `\n\n${callout}`;
   });
@@ -681,6 +692,48 @@ class DailyChecklistSettingTab extends PluginSettingTab {
         .onChange(async v => { this.plugin.settings.writeChecklistToDailyNote = v; await this.plugin.saveSettings(); })
       );
 
+    // ── Callout configuration ──────────────────────────────────────────────
+    containerEl.createEl("h3", { text: "Daily Checklist callout" });
+    const calloutNote = containerEl.createEl("p", { cls: "setting-item-description" });
+    calloutNote.setText(
+      "These settings control the exact callout header the plugin manages. " +
+      "The plugin only matches and rewrites this exact callout. If you change " +
+      "any of these settings, existing daily notes with the previous header " +
+      "will not be rewritten automatically — on the next explicit checklist " +
+      "change, a new callout with the configured header will be appended."
+    );
+
+    new Setting(containerEl)
+      .setName("Daily note callout type")
+      .setDesc("The callout type used inside [!type]. Examples: todo, check, note, info, example. Stored without brackets or '!'.")
+      .addText(t => t
+        .setPlaceholder("todo")
+        .setValue(this.plugin.settings.dailyNoteCalloutType)
+        .onChange(async v => { this.plugin.settings.dailyNoteCalloutType = v; await this.plugin.saveSettings(); })
+      );
+
+    new Setting(containerEl)
+      .setName("Daily note callout title")
+      .setDesc("The title text shown after the callout marker.")
+      .addText(t => t
+        .setPlaceholder("Daily Checklist")
+        .setValue(this.plugin.settings.dailyNoteCalloutTitle)
+        .onChange(async v => { this.plugin.settings.dailyNoteCalloutTitle = v; await this.plugin.saveSettings(); })
+      );
+
+    new Setting(containerEl)
+      .setName("Daily note callout fold state")
+      .setDesc("Collapsed writes [!type]- and Open writes [!type]+. The plugin only matches the exact configured form.")
+      .addDropdown(dd => dd
+        .addOption("collapsed", "Collapsed")
+        .addOption("open", "Open")
+        .setValue(this.plugin.settings.dailyNoteCalloutFoldState)
+        .onChange(async v => {
+          this.plugin.settings.dailyNoteCalloutFoldState = (v === "open" ? "open" : "collapsed");
+          await this.plugin.saveSettings();
+        })
+      );
+
     // ── Daily Notes ─────────────────────────────────────────────────────────
     containerEl.createEl("h3", { text: "Daily Notes" });
 
@@ -938,6 +991,20 @@ export default class DailyChecklistPlugin extends Plugin {
     // user-meaningful state and is preserved.
     if (!saved?.checklistItems) this.settings.checklistItems = [...DEFAULT_CHECKLIST];
     if (!saved?.checklistState) this.settings.checklistState = { date: "", checked: {} };
+    // Sanitize the configurable callout header fields. Empty/whitespace falls
+    // back to defaults; an unrecognized fold state falls back to "collapsed".
+    if (typeof this.settings.dailyNoteCalloutType !== "string"
+        || !this.settings.dailyNoteCalloutType.trim()) {
+      this.settings.dailyNoteCalloutType = "todo";
+    }
+    if (typeof this.settings.dailyNoteCalloutTitle !== "string"
+        || !this.settings.dailyNoteCalloutTitle.trim()) {
+      this.settings.dailyNoteCalloutTitle = "Daily Checklist";
+    }
+    if (this.settings.dailyNoteCalloutFoldState !== "open"
+        && this.settings.dailyNoteCalloutFoldState !== "collapsed") {
+      this.settings.dailyNoteCalloutFoldState = "collapsed";
+    }
   }
 
   async saveSettings(): Promise<void> {
