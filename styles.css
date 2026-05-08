@@ -1,0 +1,228 @@
+/* ── Daily Checklist ──────────────────────────────────────────────────────── */
+
+.dc-root {
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* ── Section structure ───────────────────────────────────────────────────── */
+
+.dc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-section-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 2px 0 6px;
+}
+
+.dc-edit-toggle {
+  font-weight: 400;
+  text-transform: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.dc-edit-toggle:hover {
+  color: var(--color-accent);
+}
+
+.dc-empty-hint {
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+  padding: 4px 2px;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.dc-link-btn {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  padding: 5px 10px;
+  margin-top: 4px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  font-weight: 400;
+  color: var(--text-normal);
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+}
+
+.dc-link-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.dc-link-plus {
+  font-size: var(--font-ui-small);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.dc-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 12px;
+  line-height: 1;
+  box-shadow: none;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dc-icon-btn .svg-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.dc-icon-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* ── Drag-and-drop ───────────────────────────────────────────────────────── */
+
+.dc-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--text-faint);
+  padding: 2px 0;
+}
+
+.dc-drag-handle .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.dc-drag-handle:hover {
+  color: var(--text-muted);
+}
+
+.dc-drag-handle:active {
+  cursor: grabbing;
+}
+
+.dc-dragging {
+  opacity: 0.4;
+}
+
+.dc-drag-over {
+  box-shadow: inset 0 2px 0 0 var(--color-accent);
+}
+
+.dc-drag-over-bottom {
+  box-shadow: inset 0 -2px 0 0 var(--color-accent);
+}
+
+.setting-item.dc-drag-over,
+.setting-item.dc-drag-over-bottom {
+  border-radius: 0;
+}
+
+.dc-settings-action-row {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+/* ── Daily Checklist rows ────────────────────────────────────────────────── */
+
+.dc-checklist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.dc-checklist-cb {
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--color-accent);
+  width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+.dc-checklist-label {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  cursor: default;
+  user-select: none;
+}
+
+.dc-checklist-label.dc-checked {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.dc-checklist-edit-input {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  background: var(--background-modifier-form-field);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  padding: 7px 10px;
+  color: var(--text-normal);
+}
+
+.dc-delete-btn {
+  background: var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+}
+
+.dc-delete-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* ── Settings input suggest ─────────────────────────────────────────────── */
+/* Visual styling is inherited from Obsidian's native .suggestion-container /
+   .suggestion-item / .is-selected classes. The rules here only add the bits
+   the native classes don't cover for an inline settings autocomplete: a
+   max-height with scrolling, and a high enough z-index to overlay following
+   settings rows. Position/left/top/width are set inline at runtime so the
+   dropdown matches the input's bounding rect. */
+
+.dc-suggest {
+  z-index: var(--layer-menu, 1000);
+  max-height: 240px;
+  overflow-y: auto;
+}
