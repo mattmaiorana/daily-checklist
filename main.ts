@@ -730,8 +730,8 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Open sidebar on startup")
-      .setDesc("Automatically open the Daily Checklist view when Obsidian starts.")
+      .setName("Add Daily Checklist to sidebar on startup")
+      .setDesc("Ensure the Daily Checklist view is available in the right sidebar when Obsidian starts. The view will not steal focus from your active sidebar tab.")
       .addToggle(t => t
         .setValue(this.plugin.settings.openSidebarOnStartup)
         .onChange(async v => {
@@ -1024,14 +1024,13 @@ export default class DailyChecklistPlugin extends Plugin {
     document.addEventListener("visibilitychange", onVisibilityChange);
     this.register(() => document.removeEventListener("visibilitychange", onVisibilityChange));
 
-    // Optional auto-open on startup. Wait for layout-ready so the workspace
-    // has fully restored its leaves before we ask for the right sidebar —
-    // otherwise activateView could race with workspace restoration and
-    // create a duplicate leaf. activateView itself early-returns when a
-    // Daily Checklist leaf already exists, and never writes to any note.
+    // Optional: ensure a Daily Checklist leaf exists in the right sidebar
+    // when Obsidian starts, *without* stealing focus from whichever sidebar
+    // tab the user (or workspace restore) had active. We wait for
+    // layout-ready so we don't race with workspace restoration.
     if (this.settings.openSidebarOnStartup) {
       this.app.workspace.onLayoutReady(() => {
-        this.activateView();
+        this.ensureSidebarLeafOnStartup();
       });
     }
   }
@@ -1040,6 +1039,8 @@ export default class DailyChecklistPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE);
   }
 
+  /** Ribbon / command path: reveal the view (focus the sidebar tab). Creates
+   *  the leaf if missing. Always intends to surface the view to the user. */
   async activateView(): Promise<void> {
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE);
@@ -1049,6 +1050,19 @@ export default class DailyChecklistPlugin extends Plugin {
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
       workspace.revealLeaf(leaf);
     }
+  }
+
+  /** Startup path: ensure the leaf exists in the right sidebar but do NOT
+   *  steal focus from whichever sidebar tab is currently active. If a leaf
+   *  already exists (e.g. restored from the saved workspace), do nothing.
+   *  Never calls revealLeaf or sets the view active. Performs no vault
+   *  writes. */
+  async ensureSidebarLeafOnStartup(): Promise<void> {
+    const { workspace } = this.app;
+    if (workspace.getLeavesOfType(VIEW_TYPE).length > 0) return;
+    const leaf = workspace.getRightLeaf(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: VIEW_TYPE, active: false });
   }
 
   async loadSettings(): Promise<void> {
