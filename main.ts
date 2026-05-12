@@ -65,12 +65,35 @@ const DEFAULT_SETTINGS: DailyChecklistSettings = {
   checklistState: { date: "", checked: {} },
 };
 
+// Sanitize the callout title: strip CR/LF runs (replace with single space)
+// and trim. Empty result falls back to "Daily Checklist". A hand-edited
+// data.json could otherwise smuggle an internal newline that would produce
+// a multi-line header that can never match itself — causing every checklist
+// mutation to append a fresh duplicate callout.
+function sanitizeCalloutTitle(raw: unknown): string {
+  if (typeof raw !== "string") return "Daily Checklist";
+  const cleaned = raw.replace(/[\r\n]+/g, " ").trim();
+  return cleaned || "Daily Checklist";
+}
+
+// Sanitize the callout type: same CR/LF-strip + trim as the title, *plus* a
+// conservative whitelist of characters allowed inside `[!type]`. Anything
+// outside `[A-Za-z0-9_-]` risks breaking the callout marker (`]`, `[`, `!`,
+// `|`, newlines, etc.). Invalid → "todo".
+function sanitizeCalloutType(raw: unknown): string {
+  if (typeof raw !== "string") return "todo";
+  const cleaned = raw.replace(/[\r\n]+/g, " ").trim();
+  if (!cleaned) return "todo";
+  if (!/^[A-Za-z0-9_-]+$/.test(cleaned)) return "todo";
+  return cleaned;
+}
+
 // Build the exact callout header the plugin manages, from current settings.
 // This single string is both the line we emit on write and the line we look
 // for on read — exact-match (with trailing whitespace tolerated).
 function buildCalloutHeader(settings: DailyChecklistSettings): string {
-  const type = settings.dailyNoteCalloutType.trim() || "todo";
-  const title = settings.dailyNoteCalloutTitle.trim() || "Daily Checklist";
+  const type = sanitizeCalloutType(settings.dailyNoteCalloutType);
+  const title = sanitizeCalloutTitle(settings.dailyNoteCalloutTitle);
   const fold = settings.dailyNoteCalloutFoldState === "open" ? "+" : "-";
   return `> [!${type}]${fold} ${title}`;
 }
@@ -1030,7 +1053,7 @@ export default class DailyChecklistPlugin extends Plugin {
     // layout-ready so we don't race with workspace restoration.
     if (this.settings.openSidebarOnStartup) {
       this.app.workspace.onLayoutReady(() => {
-        this.ensureSidebarLeafOnStartup();
+        this.ensureSidebarLeafOnStartup().catch(console.error);
       });
     }
   }
@@ -1110,16 +1133,11 @@ export default class DailyChecklistPlugin extends Plugin {
     }
 
     // ── Callout-config string fields ──────────────────────────────────────
-    // Empty/whitespace falls back to defaults; an unrecognized fold state
-    // falls back to "collapsed".
-    if (typeof this.settings.dailyNoteCalloutType !== "string"
-        || !this.settings.dailyNoteCalloutType.trim()) {
-      this.settings.dailyNoteCalloutType = "todo";
-    }
-    if (typeof this.settings.dailyNoteCalloutTitle !== "string"
-        || !this.settings.dailyNoteCalloutTitle.trim()) {
-      this.settings.dailyNoteCalloutTitle = "Daily Checklist";
-    }
+    // Sanitize via the same helpers used at write time, so the persisted
+    // value, the settings-UI value, and the emitted header all agree. Empty
+    // or invalid → defaults; an unrecognized fold state → "collapsed".
+    this.settings.dailyNoteCalloutType = sanitizeCalloutType(this.settings.dailyNoteCalloutType);
+    this.settings.dailyNoteCalloutTitle = sanitizeCalloutTitle(this.settings.dailyNoteCalloutTitle);
     if (this.settings.dailyNoteCalloutFoldState !== "open"
         && this.settings.dailyNoteCalloutFoldState !== "collapsed") {
       this.settings.dailyNoteCalloutFoldState = "collapsed";

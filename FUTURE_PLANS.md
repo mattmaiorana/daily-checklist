@@ -92,3 +92,63 @@ When implemented:
 - Sanitize the same way other string settings are: trim, fall back to default on empty.
 - Render in the existing `dc-section-label` element instead of the hardcoded string.
 - No changes to `buildCalloutHeader` or `rewriteChecklistSection`.
+
+## H. Visibilitychange race with in-flight saveSettings
+
+`onVisibilityChange` (`main.ts`) calls `await this.loadSettings()` on foreground. If a checklist mutation's `saveSettings` is in flight at that moment, `loadSettings` reads the pre-save snapshot from disk and overwrites the in-memory mutation. The next mutation then writes the stale state back, silently losing the original toggle.
+
+In practice this requires the user to background and foreground Obsidian within the ~10 ms `data.json` write window — essentially zero probability on a single-user, single-device workflow. The reset-on-date-rollover is idempotent and self-heals; only a non-reset toggle would be silently lost.
+
+A defensive fix would track in-flight saves via a `saving: Promise<void> | null` member and `await` it before reloading on visibility change. Five lines, no observable behavior change in the common case. Defer until needed.
+
+## I. Duplicate checklist item names share state
+
+`checklistState.checked` is keyed by the raw item string. If the user adds two items with the same name `"Foo"`:
+- Both checkboxes toggle together when either is clicked.
+- Deleting either row removes both (the `filter(i => i !== "Foo")` removes all matches).
+- Renaming only updates the first match (via `indexOf`).
+
+The plugin does not crash, and the daily-note callout output is consistent with the underlying state. The UX is surprising.
+
+Future fix options:
+- Use stable per-item IDs in the storage shape instead of raw-name keys (would require a `data.json` migration step).
+- Or, on add, append a disambiguator if the name already exists.
+
+Out of v1 scope.
+
+## J. Settings tab does not auto-refresh on sidebar-driven changes
+
+The settings tab's checklist editor (`renderClList`) only renders when `display()` is called. If the settings tab is open in a tab/window while the user mutates the checklist from the sidebar, the settings tab's item list shows stale data until the tab is reopened.
+
+The reverse direction (settings → sidebar) is handled correctly via `refreshViews()`.
+
+Fix later: track the live settings-tab instance on the plugin and call `renderClList()` from sidebar mutation handlers (or after `saveSettings` resolves). Not a safety issue; UX polish.
+
+## K. Debounce settings string-field saves
+
+`addText.onChange` fires per keystroke; each fires an `await saveSettings()`. For a 20-character entry, that's 20 disk writes to `data.json`. Not catastrophic (the file is tiny) but wasteful.
+
+A 200–500 ms debounce (using Obsidian's `debounce()` helper) would reduce this to one write per pause. Out of v1 scope.
+
+## L. No reorder UI on touch devices
+
+Drag-and-drop is correctly suppressed when `navigator.maxTouchPoints > 0` (HTML5 D&D's touch story is unreliable). But there's no replacement — touch users cannot reorder items.
+
+Possible solutions later:
+- Long-press to enter a reorder mode with up/down buttons.
+- Always-show up/down arrows next to each row in edit mode on touch.
+- A "Move up" / "Move down" command in the settings tab item list.
+
+Out of v1 scope.
+
+## M. Extract shared drag-and-drop helper
+
+The sidebar and settings tab implement near-identical drag-and-drop logic — ~30 lines each, ~95% overlap. A shared helper taking `{ container, items, onReorder }` would consolidate the logic and reduce maintenance risk.
+
+Pure refactor; no observable behavior change. Defer until either copy needs to change.
+
+## N. Settings-tab cancel button labelled "Delete"
+
+The temporary "+ Add item" row in the settings tab uses `setButtonText("Delete").setWarning()` for what is functionally a Cancel action. The styling matches the actual Delete buttons on saved rows. A fresh user could reasonably read "Delete" on an unsaved row as "delete this item" — though the action does cancel correctly.
+
+Could be relabelled `"Cancel"` while keeping the red `.setWarning()` styling for visual consistency with adjacent rows.
