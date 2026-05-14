@@ -8,7 +8,7 @@
     "build": "node esbuild.config.mjs production"
   },
   "keywords": [],
-  "author": "",
+  "author": "Matt Maiorana",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",
