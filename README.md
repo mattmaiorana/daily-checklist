@@ -14,7 +14,7 @@ A minimal Obsidian sidebar plugin for a lightweight daily checklist. Check off y
 
 ## Screenshots
 
-> _Coming soon — sidebar view + settings tab._
+![Daily Checklist sidebar in Obsidian](images/daily-checklist.png)
 
 ## Installation
 
