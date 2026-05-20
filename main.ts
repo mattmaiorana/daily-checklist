@@ -44,11 +44,11 @@ interface DailyChecklistSettings {
 // ── Defaults ──────────────────────────────────────────────────────────────────
 
 const DEFAULT_CHECKLIST: string[] = [
-  "Read books to kids",
-  "Dinner at the table",
+  "Exercise",
+  "Take vitamins",
   "Evening walk",
+  "Read",
   "Journal",
-  "7hrs of sleep",
 ];
 
 const DEFAULT_SETTINGS: DailyChecklistSettings = {

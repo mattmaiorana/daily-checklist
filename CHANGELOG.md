@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.3] - 2026-05-20
+
+This patch release updates the default checklist items for new installs.
+
+### Changed
+
+- Updated the default checklist items to:
+  - Exercise
+  - Take vitamins
+  - Evening walk
+  - Read
+  - Journal
+
+### Notes
+
+- Existing users are unaffected if their vault already has saved checklist items in `data.json`.
+
 ## [1.0.2] - 2026-05-20
 
 This patch release prepares Daily Checklist for public Obsidian submission with release metadata cleanup and workspace-safety polish.
