@@ -91,13 +91,15 @@ Both `npm run build` and `npx tsc --noEmit` should pass clean before shipping an
 
 ## Release files
 
-A GitHub release should attach exactly three files at the top level:
+Each GitHub release attaches exactly three files at the top level:
 
 - `main.js`
 - `manifest.json`
 - `styles.css`
 
 Users drop those three into `<vault>/.obsidian/plugins/daily-checklist/`.
+
+Releases are built by [GitHub Actions](./.github/workflows/release.yml) from the tagged source. Each release asset (`main.js`, `manifest.json`, `styles.css`) is published with a [GitHub artifact attestation](https://docs.github.com/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds) so that downloaders can verify the asset was produced by this repository's CI from the tagged commit.
 
 ## License
 

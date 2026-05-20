@@ -1,0 +1,95 @@
+name: Release
+
+# Triggered automatically on a pushed version tag like `1.0.2` or `1.10.5`.
+# Also exposes a `workflow_dispatch` button so an existing tag can be (re-)
+# released from the Actions UI without re-tagging the repository.
+on:
+  push:
+    tags:
+      - '[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build a release for (e.g. 1.0.2)'
+        required: true
+        type: string
+
+permissions:
+  contents: write       # create GitHub release + upload assets
+  id-token: write       # mint OIDC token for attestations
+  attestations: write   # write the attestation entries
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve target tag
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "::error::Could not determine target tag." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing tag: $tag"
+
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.tag }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify release files exist
+        run: |
+          set -euo pipefail
+          for f in main.js manifest.json styles.css; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing required release file: $f" >&2
+              exit 1
+            fi
+          done
+          echo "All required release files present."
+
+      - name: Generate artifact attestations
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.ref.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists — uploading/overwriting assets."
+            gh release upload "$tag" main.js manifest.json styles.css --clobber
+          else
+            echo "Creating new release $tag."
+            gh release create "$tag" \
+              --title "$tag" \
+              --notes "See CHANGELOG.md for details." \
+              main.js manifest.json styles.css
+          fi
