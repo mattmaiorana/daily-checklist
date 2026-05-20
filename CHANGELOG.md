@@ -2,11 +2,24 @@
 
 ## [1.0.2] - 2026-05-20
 
-- Fixed README release link for manual installation.
-- Removed sidebar leaf detachment on plugin unload to preserve Obsidian workspace layout across updates and disable/re-enable cycles.
-- Raised the minimum Obsidian app version and tightened the development-dependency range to match the plugin's use of `Vault.process`.
-- Removed the redundant plugin-name heading at the top of the settings tab.
-- Cleaned up the public release notes.
+This patch release prepares Daily Checklist for public Obsidian submission with release metadata cleanup and workspace-safety polish.
+
+### Changed
+
+- Updated the minimum Obsidian version to `1.5.0` for `Vault.process` compatibility.
+- Pinned the Obsidian dev dependency instead of using `latest`.
+- Removed a redundant plugin-name heading from the settings tab.
+- Cleaned up public changelog wording.
+
+### Fixed
+
+- Fixed the README release link for manual installation.
+- Removed sidebar leaf detachment on plugin unload to preserve Obsidian workspace layout during updates.
+
+### Notes
+
+- Release assets are built by GitHub Actions.
+- Release assets include artifact attestations for `main.js`, `manifest.json`, and `styles.css`.
 
 ## [1.0.1] - 2026-05-12
 
