@@ -44,11 +44,14 @@ jobs:
           ref: ${{ steps.ref.outputs.tag }}
 
       - name: Extract release notes from CHANGELOG.md
-        # Pulls just the `## [<tag>] - <date>` section from CHANGELOG.md,
-        # stopping at the next `## [` heading (or EOF). Uses awk with literal
-        # substring matching to avoid regex-escaping the dots in the tag.
-        # Fails the workflow if no matching section exists, so we never ship
-        # a release with placeholder notes.
+        # Extracts the body under the matching `## [<tag>] - <date>` section,
+        # excluding the heading itself (GitHub already shows the title/tag/
+        # date). Stops before the next `## [` section. Trims leading and
+        # trailing blank lines so the release body starts with the first real
+        # paragraph or sub-heading. Uses literal substring matching so the
+        # dots in the tag don't need regex escaping. Fails the workflow if
+        # no matching section exists or if the section is blank after
+        # trimming, so we never ship a release with placeholder notes.
         run: |
           set -euo pipefail
           tag="${{ steps.ref.outputs.tag }}"
@@ -57,17 +60,24 @@ jobs:
             exit 1
           fi
           awk -v tag="$tag" '
-            BEGIN { header = "## [" tag "]"; in_section = 0 }
+            BEGIN { header = "## [" tag "]"; in_section = 0; n = 0 }
             {
               if (substr($0, 1, length(header)) == header) {
-                in_section = 1; print; next
+                in_section = 1; next   # found header — skip the heading line itself
               }
               if (in_section && substr($0, 1, 4) == "## [") { exit }
-              if (in_section) print
+              if (in_section) lines[n++] = $0
+            }
+            END {
+              start = 0
+              while (start < n && lines[start] ~ /^[[:space:]]*$/) start++
+              end = n - 1
+              while (end >= start && lines[end] ~ /^[[:space:]]*$/) end--
+              for (i = start; i <= end; i++) print lines[i]
             }
           ' CHANGELOG.md > /tmp/release-notes.md
           if [ ! -s /tmp/release-notes.md ]; then
-            echo "::error::No CHANGELOG.md section found for tag '$tag'. Add a '## [$tag] - YYYY-MM-DD' section before releasing." >&2
+            echo "::error::No CHANGELOG.md section found (or section was blank) for tag '$tag'. Add a '## [$tag] - YYYY-MM-DD' section with body content before releasing." >&2
             exit 1
           fi
           echo "Extracted release notes for $tag:"
