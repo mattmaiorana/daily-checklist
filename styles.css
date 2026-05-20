@@ -143,12 +143,16 @@
   border-radius: 0;
 }
 
-.dc-settings-action-row {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding-top: 4px !important;
-  padding-bottom: 4px !important;
+/* Chained-class selector to outrank Obsidian's default `.setting-item`
+   styling without using `!important`. Both classes are on the same element
+   (we add `dc-settings-action-row` to a `.setting-item`), so this is just
+   a specificity bump from (0,1,0) to (0,2,0). */
+.setting-item.dc-settings-action-row {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 /* ── Daily Checklist rows ────────────────────────────────────────────────── */
