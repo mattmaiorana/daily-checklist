@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.4] - 2026-05-20
+
+This patch release addresses Obsidian plugin checker warnings ahead of public submission.
+
+### Changed
+
+- Replaced the `builtin-modules` dependency with Node's built-in `module.builtinModules` in the build configuration.
+- Removed `!important` CSS declarations by increasing selector specificity for the settings add-item row.
+
+### Notes
+
+- No plugin behavior changed.
+- Build and typecheck remain clean.
+
 ## [1.0.3] - 2026-05-20
 
 This patch release updates the default checklist items for new installs.
