@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2] - 2026-05-20
+
+- Fixed README release link for manual installation.
+- Removed sidebar leaf detachment on plugin unload to preserve Obsidian workspace layout across updates and disable/re-enable cycles.
+- Raised the minimum Obsidian app version and tightened the development-dependency range to match the plugin's use of `Vault.process`.
+- Removed the redundant plugin-name heading at the top of the settings tab.
+- Cleaned up the public release notes.
+
 ## [1.0.1] - 2026-05-12
 
 - Added focus-preserving startup sidebar behavior:
@@ -12,8 +20,6 @@
   - Prevents malformed hand-edited `data.json` values from creating duplicate malformed callouts.
 - Improved startup error handling:
   - Catches errors from startup sidebar creation instead of allowing unhandled promise rejections.
-- Updated `FUTURE_PLANS.md`:
-  - Added deferred follow-up items from the final review.
 
 ## [1.0.0] - 2026-05-07
 

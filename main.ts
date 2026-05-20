@@ -737,7 +737,8 @@ class DailyChecklistSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Daily Checklist" });
+    // Obsidian shows the plugin name in the settings chrome above this
+    // container, so adding our own h2 here would duplicate that label.
 
     // ── Visibility ───────────────────────────────────────────────────────────
     new Setting(containerEl)
@@ -1058,9 +1059,12 @@ export default class DailyChecklistPlugin extends Plugin {
     }
   }
 
-  onunload(): void {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE);
-  }
+  // No onunload(): Obsidian automatically detaches our registered view on
+  // unload and shows a "this view is no longer available" placeholder in any
+  // leaf where it was open. Calling workspace.detachLeavesOfType here would
+  // wipe the leaf from the user's saved workspace layout, which is annoying
+  // on every plugin update/disable/re-enable. Per Obsidian plugin guidelines,
+  // leave cleanup to the framework.
 
   /** Ribbon / command path: reveal the view (focus the sidebar tab). Creates
    *  the leaf if missing. Always intends to surface the view to the user. */

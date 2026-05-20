@@ -20,7 +20,7 @@ A minimal Obsidian sidebar plugin for a lightweight daily checklist. Check off y
 
 ### Manual installation
 
-1. Download the latest release from the [Releases page](https://github.com/) and extract:
+1. Download the latest release from the [Releases page](https://github.com/mattmaiorana/daily-checklist/releases) and extract:
    - `main.js`
    - `manifest.json`
    - `styles.css`

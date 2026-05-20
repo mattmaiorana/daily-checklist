@@ -152,3 +152,21 @@ Pure refactor; no observable behavior change. Defer until either copy needs to c
 The temporary "+ Add item" row in the settings tab uses `setButtonText("Delete").setWarning()` for what is functionally a Cancel action. The styling matches the actual Delete buttons on saved rows. A fresh user could reasonably read "Delete" on an unsaved row as "delete this item" — though the action does cancel correctly.
 
 Could be relabelled `"Cancel"` while keeping the red `.setWarning()` styling for visual consistency with adjacent rows.
+
+## O. Notice on daily-note write failures for non-path reasons
+
+The eight `rewriteChecklistSection` call sites all wrap in `.catch(console.error)`. The two Notice-bearing failures inside `getOrCreateDailyNote` (unsafe path, missing template) already surface to the user. But `vault.create` or `vault.process` failures for non-path reasons — disk full, permission denied, sync conflict — only log to console; the user sees no UI feedback.
+
+Future improvement: add a top-level `Notice` from the catch handler at each mutation site (or factor through a helper), e.g. "Daily Checklist: couldn't update today's daily note. See console for details." UX polish; not a safety concern.
+
+## P. Re-review Obsidian dev dependency when raising minAppVersion
+
+`package.json` now pins `"obsidian": "^1.5.0"` to match `manifest.minAppVersion`. When the minimum app version is raised in the future, the dev dependency range should be bumped in lockstep so the local TypeScript API surface matches the minimum supported runtime API.
+
+The lockfile pins the specific resolved version installed at the time, so `npm ci` is deterministic; but the range in `package.json` should not be allowed to drift below `manifest.minAppVersion`.
+
+## Q. Memoize the drag-handle icon
+
+`setIcon(handle, "grip-vertical")` is called once per row per render. For a 5-item checklist this is invisible; for very long checklists, it embeds a full SVG O(n) times per render. A pre-built icon node (cloned per row) or a CSS background-image would eliminate the per-row injection.
+
+Refactor; no observable behavior change in typical use.
