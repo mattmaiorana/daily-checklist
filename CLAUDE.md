@@ -125,6 +125,14 @@ Both `npm run build` and `npx tsc --noEmit` should pass clean before shipping an
 
 To test in a vault: symlink (or copy) this folder into `<vault>/.obsidian/plugins/daily-checklist/`, then enable the plugin in Obsidian's Community Plugins settings.
 
+### Release workflow
+
+Releases are built by `.github/workflows/release.yml` (GitHub Actions):
+
+- Triggered automatically on a pushed `X.Y.Z` version tag, or manually via `workflow_dispatch` against an existing tag.
+- Checks out the tagged source, runs `npm ci`, `npx tsc --noEmit`, `npm run build`, verifies `main.js` / `manifest.json` / `styles.css` exist, extracts the matching `## [<tag>] - <date>` section from `CHANGELOG.md` (heading line stripped, blank lines trimmed), generates GitHub artifact attestations for all three assets via `actions/attest-build-provenance@v2`, then creates or updates the GitHub release with `gh release create/edit --notes-file`.
+- Releasing a new version: bump `manifest.json` / `package.json` / `package-lock.json` / `versions.json` / `CLAUDE.md`, add a `## [<tag>] - <date>` section to `CHANGELOG.md`, commit, then `git tag <tag> && git push origin <tag>`.
+
 ## 8. Future work / not yet implemented
 
 - **Custom affirmation / quote / message feature** — planned but explicitly excluded from v1. Do not add until requested.

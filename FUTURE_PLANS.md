@@ -59,7 +59,9 @@ Constraints:
 
 ## E. Large-vault autocomplete optimization
 
-`FolderSuggest.getSuggestions` and `MarkdownFileSuggest.getSuggestions` iterate `app.vault.getAllLoadedFiles()` per input event and per focus, sort the result, and slice to 200. **Read-only** — no writes. Fine for vaults of hundreds to low thousands of notes; could feel sluggish at tens of thousands.
+`FolderSuggest.getSuggestions` and `MarkdownFileSuggest.getSuggestions` iterate `app.vault.getAllLoadedFiles()` per input event and per focus, sort the result, and slice to 200. **Read-only** — no writes, no scanning of note *contents* (only path names). Fine for vaults of hundreds to low thousands of notes; could feel sluggish at tens of thousands.
+
+The Obsidian community-plugin checker flags any use of `getAllLoadedFiles()` as "vault enumeration." Here it's deliberate and minimal — it powers the two folder/markdown-file autocomplete inputs in the settings tab and runs only while the user types into those fields. We accept the checker warning rather than degrade the autocomplete UX.
 
 Possible optimizations later:
 - Cache the candidate list at suggest construction time and invalidate on a debounced timer.

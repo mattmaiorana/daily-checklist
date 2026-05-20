@@ -51,11 +51,11 @@ When "Write checklist to daily note" is enabled, the plugin writes (and updates)
 
 ```
 > [!todo]- Daily Checklist
-> - [ ] Read books to kids
-> - [x] Dinner at the table
+> - [ ] Exercise
+> - [x] Take vitamins
 > - [ ] Evening walk
+> - [ ] Read
 > - [ ] Journal
-> - [ ] 7hrs of sleep
 ```
 
 The callout type, title, and fold state are configurable.
@@ -75,6 +75,10 @@ These rules are non-negotiable:
 - **Atomic writes** via `app.vault.process`.
 
 If you change the callout type / title / fold state mid-stream, the plugin does **not** retroactively migrate or rewrite the old callout. The next mutation will append a fresh callout with the new configured header; the old one stays in place for you to delete manually if you want to.
+
+### A note on autocomplete
+
+The "Daily notes folder" and "Daily note template path" settings show autocomplete suggestions drawn from your vault's folder and markdown-file paths. The plugin lists path names only — it does **not** read the contents of any note for autocomplete and does **not** scan or modify historical notes. The autocomplete is read-only and only runs while you're typing into those two settings fields.
 
 ## Development
 
