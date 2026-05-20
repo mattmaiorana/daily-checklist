@@ -43,6 +43,38 @@ jobs:
         with:
           ref: ${{ steps.ref.outputs.tag }}
 
+      - name: Extract release notes from CHANGELOG.md
+        # Pulls just the `## [<tag>] - <date>` section from CHANGELOG.md,
+        # stopping at the next `## [` heading (or EOF). Uses awk with literal
+        # substring matching to avoid regex-escaping the dots in the tag.
+        # Fails the workflow if no matching section exists, so we never ship
+        # a release with placeholder notes.
+        run: |
+          set -euo pipefail
+          tag="${{ steps.ref.outputs.tag }}"
+          if [ ! -f CHANGELOG.md ]; then
+            echo "::error::CHANGELOG.md not found at the tagged commit." >&2
+            exit 1
+          fi
+          awk -v tag="$tag" '
+            BEGIN { header = "## [" tag "]"; in_section = 0 }
+            {
+              if (substr($0, 1, length(header)) == header) {
+                in_section = 1; print; next
+              }
+              if (in_section && substr($0, 1, 4) == "## [") { exit }
+              if (in_section) print
+            }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "::error::No CHANGELOG.md section found for tag '$tag'. Add a '## [$tag] - YYYY-MM-DD' section before releasing." >&2
+            exit 1
+          fi
+          echo "Extracted release notes for $tag:"
+          echo "----------------------------------"
+          cat /tmp/release-notes.md
+          echo "----------------------------------"
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -84,12 +116,13 @@ jobs:
           set -euo pipefail
           tag="${{ steps.ref.outputs.tag }}"
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag already exists — uploading/overwriting assets."
+            echo "Release $tag already exists — updating notes and uploading/overwriting assets."
+            gh release edit "$tag" --notes-file /tmp/release-notes.md
             gh release upload "$tag" main.js manifest.json styles.css --clobber
           else
             echo "Creating new release $tag."
             gh release create "$tag" \
               --title "$tag" \
-              --notes "See CHANGELOG.md for details." \
+              --notes-file /tmp/release-notes.md \
               main.js manifest.json styles.css
           fi
