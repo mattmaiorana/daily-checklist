@@ -10,7 +10,7 @@ Personal Obsidian plugin. This file is the primer for future Claude Code session
 - **Stack:** TypeScript, single-file `main.ts`, bundled to `main.js` via esbuild.
 - **Surface:** A right-sidebar Obsidian view (`ItemView`, `VIEW_TYPE = "daily-checklist-view"`) with one section: Daily Checklist. Plus a settings tab.
 - **Targets:** Desktop and mobile Obsidian (`isDesktopOnly: false`).
-- **Repo layout:** flat — `main.ts`, `styles.css`, `manifest.json`, `package.json`, `tsconfig.json`, `esbuild.config.mjs`, `CHANGELOG.md`, `FUTURE_PLANS.md`. No subfolders for source.
+- **Repo layout:** flat — `main.ts`, `styles.css`, `manifest.json`, `package.json`, `package-lock.json`, `versions.json`, `tsconfig.json`, `esbuild.config.mjs`, `README.md`, `LICENSE`, `CHANGELOG.md`, `FUTURE_PLANS.md`. Plus `.github/workflows/release.yml` for CI and `images/` for README assets. No subfolders for source.
 
 ## 2. v1 scope
 
@@ -32,6 +32,7 @@ A focused Obsidian sidebar plugin for a lightweight daily checklist.
 - Edit mode (per-section `(edit)` ↔ `(done)` toggle): add, rename, delete, drag-and-drop reorder (desktop only).
 - Per-day checked state in `data.json`, reset on first render after the local date rolls over.
 - Loading / enabling / opening the sidebar / opening settings / rendering does **not** modify any note.
+- **`DEFAULT_CHECKLIST`** (used only when `data.json` has no `checklistItems` key — i.e. fresh installs): `Exercise`, `Take vitamins`, `Evening walk`, `Read`, `Journal`.
 
 ### Settings
 
