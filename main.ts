@@ -30,6 +30,7 @@ interface ChecklistState {
 interface DailyChecklistSettings {
   showChecklist: boolean;
   openSidebarOnStartup: boolean;
+  showSidebarEditLink: boolean;
   writeChecklistToDailyNote: boolean;
   dailyNoteCalloutType: string;
   dailyNoteCalloutTitle: string;
@@ -54,6 +55,7 @@ const DEFAULT_CHECKLIST: string[] = [
 const DEFAULT_SETTINGS: DailyChecklistSettings = {
   showChecklist: true,
   openSidebarOnStartup: true,
+  showSidebarEditLink: true,
   writeChecklistToDailyNote: true,
   dailyNoteCalloutType: "todo",
   dailyNoteCalloutTitle: "Daily Checklist",
@@ -519,10 +521,18 @@ class DailyChecklistView extends ItemView {
 
     const header = section.createEl("div", { cls: "dc-section-label" });
     header.createEl("span", { text: "DAILY CHECKLIST" });
-    const editToggle = header.createEl("span", { cls: "dc-edit-toggle", text: "(edit)" });
 
     const list = section.createEl("div", { cls: "dc-checklist-list" });
 
+    if (!this.plugin.settings.showSidebarEditLink) {
+      // Edit-link hidden by setting. Render items in normal mode only —
+      // checklist items can still be managed via the plugin's settings tab.
+      // The `editBtn` argument is unused when editMode is false; pass null.
+      this.renderChecklistItems(list, false, null);
+      return;
+    }
+
+    const editToggle = header.createEl("span", { cls: "dc-edit-toggle", text: "(edit)" });
     this.renderChecklistItems(list, false, editToggle);
 
     editToggle.onclick = () => {
@@ -539,7 +549,7 @@ class DailyChecklistView extends ItemView {
     };
   }
 
-  private renderChecklistItems(container: HTMLElement, editMode: boolean, editBtn: HTMLElement): void {
+  private renderChecklistItems(container: HTMLElement, editMode: boolean, editBtn: HTMLElement | null): void {
     container.empty();
     const items = this.plugin.settings.checklistItems;
     // Read checklistState through this.plugin.settings on every mutation —
@@ -749,6 +759,22 @@ class DailyChecklistSettingTab extends PluginSettingTab {
         .onChange(async v => {
           this.plugin.settings.showChecklist = v;
           await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("Show edit link in sidebar")
+      .setDesc("Show the “(edit)” control next to the Daily Checklist sidebar title.")
+      .addToggle(t => t
+        .setValue(this.plugin.settings.showSidebarEditLink)
+        .onChange(async v => {
+          this.plugin.settings.showSidebarEditLink = v;
+          await this.plugin.saveSettings();
+          // Re-render the sidebar so the edit link appears/disappears.
+          // The re-render starts in normal (non-edit) mode, so a user who
+          // was mid-edit when they hid the link returns to the calm view
+          // rather than being stuck in invisible edit mode.
           this.plugin.refreshViews();
         })
       );
@@ -1134,6 +1160,9 @@ export default class DailyChecklistPlugin extends Plugin {
     // default rather than triggering implicit truthy/falsy coercion.
     if (typeof this.settings.openSidebarOnStartup !== "boolean") {
       this.settings.openSidebarOnStartup = DEFAULT_SETTINGS.openSidebarOnStartup;
+    }
+    if (typeof this.settings.showSidebarEditLink !== "boolean") {
+      this.settings.showSidebarEditLink = DEFAULT_SETTINGS.showSidebarEditLink;
     }
 
     // ── Callout-config string fields ──────────────────────────────────────
