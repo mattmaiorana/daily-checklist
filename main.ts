@@ -520,31 +520,45 @@ class DailyChecklistView extends ItemView {
     const section = root.createEl("div", { cls: "dc-section" });
 
     const header = section.createEl("div", { cls: "dc-section-label" });
-    header.createEl("span", { text: "DAILY CHECKLIST" });
-
     const list = section.createEl("div", { cls: "dc-checklist-list" });
 
+    // The `showSidebarEditLink` setting name predates this UI: it now
+    // gates whether the section title is clickable to toggle edit mode
+    // (the visible "(edit)" link is gone). The boolean meaning — "is
+    // there a sidebar entry point for edit mode?" — is the same, so the
+    // existing key is reused without migration.
     if (!this.plugin.settings.showSidebarEditLink) {
-      // Edit-link hidden by setting. Render items in normal mode only —
-      // checklist items can still be managed via the plugin's settings tab.
-      // The `editBtn` argument is unused when editMode is false; pass null.
+      // No sidebar entry point: render the title as a plain span and
+      // render items in normal mode only. Items can still be managed
+      // via the plugin's settings tab. `editBtn` is unused when
+      // `editMode` is false; pass null.
+      header.createEl("span", { text: "DAILY CHECKLIST" });
       this.renderChecklistItems(list, false, null);
       return;
     }
 
-    const editToggle = header.createEl("span", { cls: "dc-edit-toggle", text: "(edit)" });
-    this.renderChecklistItems(list, false, editToggle);
+    // Clickable title: render as a semantic button styled to look
+    // identical to the static span (see `.dc-section-title-btn` in
+    // styles.css). The native button gives us keyboard activation
+    // (Enter/Space) and the aria-label for assistive tech for free.
+    const titleBtn = header.createEl("button", {
+      cls: "dc-section-title-btn",
+      text: "DAILY CHECKLIST",
+      attr: {
+        type: "button",
+        "aria-label": "Toggle Daily Checklist edit mode",
+      },
+    });
+    this.renderChecklistItems(list, false, titleBtn);
 
-    editToggle.onclick = () => {
-      const isEditing = editToggle.getAttribute("data-editing") === "1";
+    titleBtn.onclick = () => {
+      const isEditing = titleBtn.getAttribute("data-editing") === "1";
       if (isEditing) {
-        editToggle.textContent = "(edit)";
-        editToggle.removeAttribute("data-editing");
-        this.renderChecklistItems(list, false, editToggle);
+        titleBtn.removeAttribute("data-editing");
+        this.renderChecklistItems(list, false, titleBtn);
       } else {
-        editToggle.textContent = "(done)";
-        editToggle.setAttribute("data-editing", "1");
-        this.renderChecklistItems(list, true, editToggle);
+        titleBtn.setAttribute("data-editing", "1");
+        this.renderChecklistItems(list, true, titleBtn);
       }
     };
   }
@@ -764,17 +778,18 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Show edit link in sidebar")
-      .setDesc("Show the “(edit)” control next to the Daily Checklist sidebar title.")
+      .setName("Enable header click to edit")
+      .setDesc("Click the Daily Checklist sidebar title to enter or exit edit mode.")
       .addToggle(t => t
         .setValue(this.plugin.settings.showSidebarEditLink)
         .onChange(async v => {
           this.plugin.settings.showSidebarEditLink = v;
           await this.plugin.saveSettings();
-          // Re-render the sidebar so the edit link appears/disappears.
-          // The re-render starts in normal (non-edit) mode, so a user who
-          // was mid-edit when they hid the link returns to the calm view
-          // rather than being stuck in invisible edit mode.
+          // Re-render the sidebar so the header becomes / stops being
+          // clickable. The re-render always starts in normal (non-edit)
+          // mode, so a user who was mid-edit when they disabled the
+          // setting returns to the calm view rather than being stuck in
+          // an unreachable edit mode.
           this.plugin.refreshViews();
         })
       );

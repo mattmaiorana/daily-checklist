@@ -41,15 +41,45 @@
   padding: 2px 0 6px;
 }
 
-.dc-edit-toggle {
-  font-weight: 400;
-  text-transform: none;
-  color: var(--text-faint);
+/* Clickable section title (when the header-click edit toggle is enabled).
+   Selector is intentionally specific — `.dc-section-label > button.dc-section-title-btn`
+   has specificity (0,2,1), which outranks Obsidian's default
+   `button:not(.clickable-icon)` rule at (0,1,1). Without that bump the
+   Obsidian default leaks its background-color, box-shadow, and color
+   onto our header. Reset every native button visual so the default
+   state is identical to the static span used when the setting is off.
+   Hover/focus shifts the text color one step dimmer
+   (var(--text-muted)) — that's the only visual signal of
+   interactivity, alongside cursor: pointer. */
+.dc-section-label > button.dc-section-title-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  line-height: inherit;
+  text-align: inherit;
   cursor: pointer;
 }
 
-.dc-edit-toggle:hover {
-  color: var(--color-accent);
+.dc-section-label > button.dc-section-title-btn:hover,
+.dc-section-label > button.dc-section-title-btn:focus-visible {
+  color: var(--text-muted);
+  background: transparent;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.dc-section-label > button.dc-section-title-btn:focus-visible {
+  outline: none;
 }
 
 .dc-empty-hint {
