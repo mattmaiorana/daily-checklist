@@ -38,6 +38,11 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-normal);
+  /* 6px bottom padding contributes to the header-to-list gap. Combined
+     with `.dc-section` gap (4px) + first row's `padding-top` (4px), the
+     total header-to-list spacing is ~14px in BOTH header-button and
+     header-span states (the button reset below zeroes Obsidian's
+     `min-height` so the button doesn't add accidental height). */
   padding: 2px 0 6px;
 }
 
@@ -60,12 +65,23 @@
   box-shadow: none;
   padding: 0;
   margin: 0;
+  /* Obsidian's form-control styles (input/button/select/textarea)
+     typically set `min-height: var(--input-height)` (~30px). Without
+     these explicit resets the button's box is taller than the
+     equivalent <span>, inflating `.dc-section-label`'s flex cross-size
+     and pushing the list further down in the button state only.
+     Zeroing min-height (and pinning height: auto in case any other
+     Obsidian rule sets an explicit height) makes the button's box
+     match the span's. */
+  min-height: 0;
+  height: auto;
   font: inherit;
   color: inherit;
   letter-spacing: inherit;
   text-transform: inherit;
   line-height: inherit;
   text-align: inherit;
+  vertical-align: baseline;
   cursor: pointer;
 }
 
