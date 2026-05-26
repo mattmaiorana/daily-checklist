@@ -98,12 +98,6 @@
   outline: none;
 }
 
-.dc-empty-hint {
-  font-size: var(--font-ui-small);
-  color: var(--text-faint);
-  padding: 4px 2px;
-}
-
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
 .dc-link-btn {

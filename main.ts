@@ -28,7 +28,6 @@ interface ChecklistState {
 }
 
 interface DailyChecklistSettings {
-  showChecklist: boolean;
   openSidebarOnStartup: boolean;
   showSidebarEditLink: boolean;
   writeChecklistToDailyNote: boolean;
@@ -53,7 +52,6 @@ const DEFAULT_CHECKLIST: string[] = [
 ];
 
 const DEFAULT_SETTINGS: DailyChecklistSettings = {
-  showChecklist: true,
   openSidebarOnStartup: true,
   showSidebarEditLink: true,
   writeChecklistToDailyNote: true,
@@ -502,14 +500,10 @@ class DailyChecklistView extends ItemView {
     root.empty();
     root.addClass("dc-root");
 
-    if (this.plugin.settings.showChecklist) {
-      this.renderChecklistSection(root);
-    } else {
-      root.createEl("div", {
-        cls: "dc-empty-hint",
-        text: "Daily Checklist is disabled. Enable it in plugin settings.",
-      });
-    }
+    // Always render the section. As a standalone plugin, Obsidian's own
+    // enable/disable controls availability — there is no separate
+    // visibility toggle.
+    this.renderChecklistSection(root);
   }
 
   private renderChecklistSection(root: HTMLElement): void {
@@ -763,19 +757,6 @@ class DailyChecklistSettingTab extends PluginSettingTab {
     containerEl.empty();
     // Obsidian shows the plugin name in the settings chrome above this
     // container, so adding our own h2 here would duplicate that label.
-
-    // ── Visibility ───────────────────────────────────────────────────────────
-    new Setting(containerEl)
-      .setName("Enable daily checklist")
-      .setDesc("Show the Daily Checklist section in the sidebar.")
-      .addToggle(t => t
-        .setValue(this.plugin.settings.showChecklist)
-        .onChange(async v => {
-          this.plugin.settings.showChecklist = v;
-          await this.plugin.saveSettings();
-          this.plugin.refreshViews();
-        })
-      );
 
     new Setting(containerEl)
       .setName("Enable header click to edit")

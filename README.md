@@ -34,7 +34,6 @@ A minimal Obsidian sidebar plugin for a lightweight daily checklist. Check off y
 
 ## Settings overview
 
-- **Enable daily checklist** — toggles whether the sidebar section renders.
 - **Add Daily Checklist to sidebar on startup** — when on, ensures the view is available in the right sidebar at startup without stealing focus from your active sidebar tab. Manual ribbon / command opens still reveal and focus the view.
 - **Write checklist to daily note** — gates all daily-note writes. When off, the plugin never touches your daily note.
 - **Daily note callout type** — the string inside `[!type]`. Defaults to `todo`. Allowed characters: letters, digits, `_`, `-`.
