@@ -209,13 +209,13 @@
 .dc-checklist-row {
   display: flex;
   align-items: center;
-  /* 6px brings the checkbox close to the label so the sidebar row reads
-     more like a native Obsidian Markdown task list. Same class is reused
-     by the sidebar's edit-mode rows (drag handle + delete button + input)
-     and the add-item row; 6px still keeps those readable. The settings
-     tab's checklist rows use Obsidian's `.setting-item` directly and are
+  /* 4px brings the checkbox-to-text spacing closer to native Obsidian
+     Markdown task list rhythm. Same class is reused by the sidebar's
+     edit-mode rows (drag handle + delete button + input) and the
+     add-item row; 4px still keeps those readable. The settings tab's
+     checklist rows use Obsidian's `.setting-item` directly and are
      not affected. */
-  gap: 6px;
+  gap: 4px;
   padding: 4px 0;
 }
 
