@@ -1,12 +1,24 @@
 /* ── Daily Checklist ──────────────────────────────────────────────────────── */
 
 .dc-root {
-  padding: 14px 12px;
+  /* Padding intentionally not set here: Obsidian's
+     `.workspace-leaf-content .view-content` rule (specificity 0,2,0)
+     would otherwise override a plain `.dc-root` (0,1,0) padding —
+     including the safe-area-aware bottom value we want to inherit.
+     The left override below uses (0,3,0) to win cleanly. */
   display: flex;
   flex-direction: column;
   gap: 18px;
   overflow-y: auto;
   box-sizing: border-box;
+}
+
+/* Higher-specificity left-padding override so the sidebar content aligns
+   with other right-sidebar plugins (e.g. Simple Pinned Files). Only
+   `padding-left` is set — top/right/bottom inherit Obsidian's defaults,
+   which preserves the safe-area-aware bottom padding on mobile. */
+.workspace-leaf-content .view-content.dc-root {
+  padding-left: 16px;
 }
 
 /* ── Section structure ───────────────────────────────────────────────────── */
@@ -143,10 +155,11 @@
   border-radius: 0;
 }
 
-/* Chained-class selector to outrank Obsidian's default `.setting-item`
-   styling without using `!important`. Both classes are on the same element
-   (we add `dc-settings-action-row` to a `.setting-item`), so this is just
-   a specificity bump from (0,1,0) to (0,2,0). */
+/* Higher specificity is intentional: this beats Obsidian's default
+   `.setting-item` styling without priority overrides. Both classes are
+   on the same element (we add `dc-settings-action-row` to a
+   `.setting-item`), so this is just a specificity bump from (0,1,0)
+   to (0,2,0). */
 .setting-item.dc-settings-action-row {
   background: transparent;
   border: none;
