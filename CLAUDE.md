@@ -6,7 +6,7 @@ Personal Obsidian plugin. This file is the primer for future Claude Code session
 
 - **Plugin name:** Daily Checklist
 - **Plugin id:** `daily-checklist` (see `manifest.json`)
-- **Current version:** 1.0.4 (see `CHANGELOG.md`)
+- **Current version:** 1.0.5 (see `CHANGELOG.md`)
 - **Stack:** TypeScript, single-file `main.ts`, bundled to `main.js` via esbuild.
 - **Surface:** A right-sidebar Obsidian view (`ItemView`, `VIEW_TYPE = "daily-checklist-view"`) with one section: Daily Checklist. Plus a settings tab.
 - **Targets:** Desktop and mobile Obsidian (`isDesktopOnly: false`).

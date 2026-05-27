@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.0.5] - 2026-05-25
+
+This patch release refines the sidebar editing experience and tightens the Daily Checklist visual layout.
+
+### Added
+
+- Added header-click editing: clicking the `DAILY CHECKLIST` sidebar title can now enter or exit edit mode.
+- Added a setting, "Enable header click to edit," to control the sidebar header edit-mode shortcut.
+
+### Changed
+
+- Replaced the visible `(edit)` link with the cleaner clickable-header interaction.
+- Updated the sidebar title color to use Obsidian's `--text-normal` variable.
+- Tightened sidebar checklist spacing so rows sit closer to native Obsidian task-list rhythm.
+- Aligned the sidebar content left padding to 16px.
+- Made header-to-list spacing consistent whether header-click editing is enabled or disabled.
+
+### Removed
+
+- Removed the redundant "Enable daily checklist" setting. As a standalone plugin, Daily Checklist now relies on Obsidian's plugin enable/disable state for availability.
+
+### Notes
+
+- Checklist items can still be managed from the settings tab even when header-click editing is disabled.
+- Existing `showSidebarEditLink` settings are preserved; the storage key is reused for the new header-click behavior.
+- No daily-note write behavior changed.
+
 ## [1.0.4] - 2026-05-20
 
 This patch release addresses Obsidian plugin checker warnings ahead of public submission.
