@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.6] - 2026-07-01
+
+This patch release fixes a runtime error on visibility change and replaces the hand-rolled settings autocomplete with Obsidian's native suggest API.
+
+### Fixed
+
+- Fixed `TypeError: leaf.view.refresh is not a function` thrown in `onVisibilityChange` (and defensively in `refreshViews`) when a Daily Checklist leaf existed but its view had not yet finished initializing. Both sites now use an `instanceof DailyChecklistView` guard instead of an unchecked cast.
+
+### Changed
+
+- Replaced the hand-rolled `TextInputSuggest` abstract class (manual DOM creation, `getBoundingClientRect` positioning, `document.body.appendChild`, `window` scroll/resize listeners, and `new Scope` keymap management) with subclasses of Obsidian's native `AbstractInputSuggest`. Obsidian now owns all popup lifecycle; the plugin supplies only `getSuggestions`, `renderSuggestion`, and `selectSuggestion`.
+- Removed the `.dc-suggest` CSS block — the native suggest popup is themed by Obsidian.
+
+### Notes
+
+- No settings, daily-note write behavior, or user-visible functionality changed.
+- Clears the plugin-checker warnings that flagged `document`/`window` usage, manual listener accumulation, and `innerHTML`.
+
 ## [1.0.5] - 2026-05-25
 
 This patch release refines the sidebar editing experience and tightens the Daily Checklist visual layout.

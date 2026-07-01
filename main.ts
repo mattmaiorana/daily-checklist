@@ -1,10 +1,10 @@
 import {
+  AbstractInputSuggest,
   App,
   ItemView,
   Notice,
   Plugin,
   PluginSettingTab,
-  Scope,
   Setting,
   TFile,
   TFolder,
@@ -262,206 +262,42 @@ async function rewriteChecklistSection(
 }
 
 // ── Settings input suggest ────────────────────────────────────────────────────
-// Lightweight folder/file autocomplete for text inputs in the settings tab.
-// Visually relies on Obsidian's native .suggestion-container / .suggestion-item
-// / .is-selected styling, so the look is theme-driven.
 
-abstract class TextInputSuggest<T> {
-  protected app: App;
-  protected inputEl: HTMLInputElement;
-  private suggestEl: HTMLDivElement;
-  private listEl: HTMLDivElement;
-  private suggestionEls: HTMLDivElement[] = [];
-  private values: T[] = [];
-  private selectedIdx = 0;
-  private isOpen = false;
-  private scope: Scope;
-  private repositionListener: () => void;
-
-  constructor(app: App, inputEl: HTMLInputElement) {
-    this.app = app;
-    this.inputEl = inputEl;
-
-    this.scope = new Scope();
-    this.scope.register([], "ArrowDown", (e) => {
-      if (e.isComposing) return;
-      this.setSelected(this.selectedIdx + 1, true);
-      return false;
-    });
-    this.scope.register([], "ArrowUp", (e) => {
-      if (e.isComposing) return;
-      this.setSelected(this.selectedIdx - 1, true);
-      return false;
-    });
-    this.scope.register([], "Enter", (e) => {
-      if (e.isComposing) return;
-      this.commit();
-      return false;
-    });
-    this.scope.register([], "Escape", () => {
-      this.close();
-      return false;
-    });
-
-    this.suggestEl = createDiv({ cls: "suggestion-container dc-suggest" });
-    this.listEl = this.suggestEl.createDiv({ cls: "suggestion" });
-
-    inputEl.addEventListener("input", () => this.onInputChanged());
-    inputEl.addEventListener("focus", () => this.onInputChanged());
-    inputEl.addEventListener("blur", () => {
-      window.setTimeout(() => this.close(), 100);
-    });
-    this.suggestEl.addEventListener("mousedown", (e) => e.preventDefault());
-
-    // Listeners are attached on open() and detached on close() so they don't
-    // leak each time the settings tab is reopened.
-    this.repositionListener = () => this.position();
+class FolderSuggest extends AbstractInputSuggest<TFolder> {
+  constructor(app: App, private inputEl: HTMLInputElement) {
+    super(app, inputEl);
   }
-
-  private onInputChanged(): void {
-    const values = this.getSuggestions(this.inputEl.value);
-    if (values.length === 0) {
-      this.close();
-      return;
-    }
-    this.values = values;
-    this.renderAll();
-    this.open();
-    this.setSelected(0, false);
+  getSuggestions(query: string): TFolder[] {
+    const lower = query.toLowerCase();
+    return this.app.vault.getAllLoadedFiles()
+      .filter((f): f is TFolder => f instanceof TFolder && f.path.toLowerCase().includes(lower))
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .slice(0, 200);
   }
-
-  private renderAll(): void {
-    this.listEl.empty();
-    this.suggestionEls = this.values.map((value) => {
-      const el = this.listEl.createDiv({ cls: "suggestion-item" });
-      this.renderSuggestion(value, el);
-      el.addEventListener("click", (e) => {
-        e.preventDefault();
-        const idx = this.suggestionEls.indexOf(el);
-        if (idx === -1) return;
-        this.selectedIdx = idx;
-        this.commit();
-      });
-      el.addEventListener("mousemove", () => {
-        const idx = this.suggestionEls.indexOf(el);
-        if (idx !== -1) this.setSelected(idx, false);
-      });
-      return el;
-    });
-  }
-
-  private setSelected(idx: number, scrollIntoView: boolean): void {
-    if (this.suggestionEls.length === 0) return;
-    const n = this.suggestionEls.length;
-    const norm = ((idx % n) + n) % n;
-    this.suggestionEls[this.selectedIdx]?.removeClass("is-selected");
-    const next = this.suggestionEls[norm];
-    next?.addClass("is-selected");
-    if (scrollIntoView) next?.scrollIntoView({ block: "nearest" });
-    this.selectedIdx = norm;
-  }
-
-  private commit(): void {
-    const value = this.values[this.selectedIdx];
-    if (value !== undefined) this.selectSuggestion(value);
+  renderSuggestion(folder: TFolder, el: HTMLElement): void { el.setText(folder.path); }
+  selectSuggestion(folder: TFolder): void {
+    this.setValue(folder.path);
+    this.inputEl.trigger("input");
     this.close();
   }
-
-  private position(): void {
-    const rect = this.inputEl.getBoundingClientRect();
-    const style = this.suggestEl.style;
-    style.position = "fixed";
-    style.left = `${rect.left}px`;
-    style.top = `${rect.bottom + 2}px`;
-    style.width = `${rect.width}px`;
-  }
-
-  private open(): void {
-    if (this.isOpen) {
-      this.position();
-      return;
-    }
-    document.body.appendChild(this.suggestEl);
-    this.position();
-    window.addEventListener("scroll", this.repositionListener, true);
-    window.addEventListener("resize", this.repositionListener);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.app as any).keymap?.pushScope?.(this.scope);
-    this.isOpen = true;
-  }
-
-  close(): void {
-    if (!this.isOpen) return;
-    window.removeEventListener("scroll", this.repositionListener, true);
-    window.removeEventListener("resize", this.repositionListener);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.app as any).keymap?.popScope?.(this.scope);
-    this.suggestEl.detach();
-    this.isOpen = false;
-  }
-
-  abstract getSuggestions(input: string): T[];
-  abstract renderSuggestion(value: T, el: HTMLElement): void;
-  abstract selectSuggestion(value: T): void;
 }
 
-class FolderSuggest extends TextInputSuggest<TFolder> {
-  private onSelected: (path: string) => void;
-
-  constructor(app: App, inputEl: HTMLInputElement, onSelected: (path: string) => void) {
+class MarkdownFileSuggest extends AbstractInputSuggest<TFile> {
+  constructor(app: App, private inputEl: HTMLInputElement) {
     super(app, inputEl);
-    this.onSelected = onSelected;
   }
-
-  getSuggestions(input: string): TFolder[] {
-    const lower = input.toLowerCase();
-    const out: TFolder[] = [];
-    for (const f of this.app.vault.getAllLoadedFiles()) {
-      if (f instanceof TFolder && f.path.toLowerCase().includes(lower)) out.push(f);
-    }
-    out.sort((a, b) => a.path.localeCompare(b.path));
-    return out.slice(0, 200);
+  getSuggestions(query: string): TFile[] {
+    const lower = query.toLowerCase();
+    return this.app.vault.getAllLoadedFiles()
+      .filter((f): f is TFile => f instanceof TFile && f.extension === "md" && f.path.toLowerCase().includes(lower))
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .slice(0, 200);
   }
-
-  renderSuggestion(folder: TFolder, el: HTMLElement): void {
-    el.setText(folder.path);
-  }
-
-  selectSuggestion(folder: TFolder): void {
-    this.inputEl.value = folder.path;
-    this.onSelected(folder.path);
-    this.inputEl.dispatchEvent(new Event("input"));
-  }
-}
-
-class MarkdownFileSuggest extends TextInputSuggest<TFile> {
-  private onSelected: (path: string) => void;
-
-  constructor(app: App, inputEl: HTMLInputElement, onSelected: (path: string) => void) {
-    super(app, inputEl);
-    this.onSelected = onSelected;
-  }
-
-  getSuggestions(input: string): TFile[] {
-    const lower = input.toLowerCase();
-    const out: TFile[] = [];
-    for (const f of this.app.vault.getAllLoadedFiles()) {
-      if (f instanceof TFile && f.extension === "md" && f.path.toLowerCase().includes(lower)) {
-        out.push(f);
-      }
-    }
-    out.sort((a, b) => a.path.localeCompare(b.path));
-    return out.slice(0, 200);
-  }
-
-  renderSuggestion(file: TFile, el: HTMLElement): void {
-    el.setText(file.path);
-  }
-
+  renderSuggestion(file: TFile, el: HTMLElement): void { el.setText(file.path); }
   selectSuggestion(file: TFile): void {
-    this.inputEl.value = file.path;
-    this.onSelected(file.path);
-    this.inputEl.dispatchEvent(new Event("input"));
+    this.setValue(file.path);
+    this.inputEl.trigger("input");
+    this.close();
   }
 }
 
@@ -846,10 +682,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
         t.setPlaceholder("Daily Notes")
           .setValue(this.plugin.settings.dailyNoteFolder)
           .onChange(async v => { this.plugin.settings.dailyNoteFolder = v; await this.plugin.saveSettings(); });
-        new FolderSuggest(this.app, t.inputEl, async (path) => {
-          this.plugin.settings.dailyNoteFolder = path;
-          await this.plugin.saveSettings();
-        });
+        new FolderSuggest(this.app, t.inputEl);
       });
 
     new Setting(containerEl)
@@ -868,10 +701,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
         t.setPlaceholder("Templates/Daily Note.md")
           .setValue(this.plugin.settings.dailyNoteTemplatePath)
           .onChange(async v => { this.plugin.settings.dailyNoteTemplatePath = v; await this.plugin.saveSettings(); });
-        new MarkdownFileSuggest(this.app, t.inputEl, async (path) => {
-          this.plugin.settings.dailyNoteTemplatePath = path;
-          await this.plugin.saveSettings();
-        });
+        new MarkdownFileSuggest(this.app, t.inputEl);
       });
 
     // ── Checklist Items ─────────────────────────────────────────────────────
@@ -1022,9 +852,9 @@ export default class DailyChecklistPlugin extends Plugin {
   settings!: DailyChecklistSettings;
 
   refreshViews(): void {
-    this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf =>
-      (leaf.view as DailyChecklistView).render()
-    );
+    this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf => {
+      if (leaf.view instanceof DailyChecklistView) leaf.view.render();
+    });
   }
 
   /** Reset checklistState if the local date has rolled over. Returns true if
@@ -1064,7 +894,7 @@ export default class DailyChecklistPlugin extends Plugin {
       if (document.hidden) return;
       await this.loadSettings();
       this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf => {
-        (leaf.view as DailyChecklistView).refresh();
+        if (leaf.view instanceof DailyChecklistView) leaf.view.refresh();
       });
     };
     document.addEventListener("visibilitychange", onVisibilityChange);

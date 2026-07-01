@@ -294,16 +294,4 @@
   box-sizing: border-box;
 }
 
-/* ── Settings input suggest ─────────────────────────────────────────────── */
-/* Visual styling is inherited from Obsidian's native .suggestion-container /
-   .suggestion-item / .is-selected classes. The rules here only add the bits
-   the native classes don't cover for an inline settings autocomplete: a
-   max-height with scrolling, and a high enough z-index to overlay following
-   settings rows. Position/left/top/width are set inline at runtime so the
-   dropdown matches the input's bounding rect. */
 
-.dc-suggest {
-  z-index: var(--layer-menu, 1000);
-  max-height: 240px;
-  overflow-y: auto;
-}
