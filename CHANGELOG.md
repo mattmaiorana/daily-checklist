@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.7] - 2026-07-01
+
+This patch release addresses plugin-checker warnings from the Obsidian community review.
+
+### Changed
+
+- Replaced raw `createEl("h3")` section headings in the settings tab with `new Setting(...).setHeading()`, as required for a consistent settings UI.
+- Bumped `minAppVersion` from `1.5.0` to `1.6.0` to correctly declare the requirement for `workspace.revealLeaf`, and added `await` to both call sites.
+- Replaced `document` with `activeDocument` in all event listener registrations (drag-handle `mouseup`, `visibilitychange`) for popout window compatibility.
+- Refactored the `visibilitychange` handler from `async/await` to a `.then().catch()` chain so it no longer returns a Promise into a void event listener slot.
+- Added `.catch(console.error)` to all `saveSettings().then(...)` chains in mutation handlers.
+- Added explicit type annotations for the `moment` call and the `vault.process` callback parameter to suppress `@typescript-eslint/no-unsafe-*` warnings in environments where the Obsidian re-exports resolve to `any`.
+- Typed the `loadData()` return value as `Record<string, unknown> | null` to eliminate the unsafe-assignment chain through `loadSettings`.
+- Removed five redundant `as HTMLInputElement` type assertions on `createEl("input")` calls; replaced one `as HTMLElement | null` querySelector cast with `querySelector<HTMLElement>`.
+- Renamed the command: `id` from `open-daily-checklist` → `open`, `name` from `Open Daily Checklist` → `Open` (Obsidian prepends the plugin name automatically).
+
+### Notes
+
+- The vault enumeration note (`getAllLoadedFiles()` in the folder/file autocomplete suggesters) is a Behavior-level checker note that applies equally to the previous hand-rolled implementation. It is expected and cannot be removed without dropping autocomplete entirely.
+- No settings, daily-note write behavior, or user-visible functionality changed.
+
 ## [1.0.6] - 2026-07-01
 
 This patch release fixes a runtime error on visibility change and replaces the hand-rolled settings autocomplete with Obsidian's native suggest API.

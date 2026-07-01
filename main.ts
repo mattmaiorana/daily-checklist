@@ -112,8 +112,8 @@ function formatDateForPath(folder: string, fmt: string, date: Date = new Date())
   // Use moment for full token support: YYYY, MM, MMMM, DD, dddd, [literals], and
   // forward slashes inside the format that resolve to nested folder segments.
   const effectiveFmt = (fmt && fmt.trim()) || "YYYY-MM-DD";
-  const filename = moment(date).format(effectiveFmt);
-  const directory = (folder ?? "").trim();
+  const filename: string = (moment as unknown as (d: Date) => { format(f: string): string })(date).format(effectiveFmt);
+  const directory = folder.trim();
   const joined = directory ? `${directory}/${filename}` : filename;
   const normalized = normalizePath(joined);
   return normalized.endsWith(".md") ? normalized : `${normalized}.md`;
@@ -236,7 +236,7 @@ async function rewriteChecklistSection(
     itemLines.push(`> - [${mark}] ${safeText}`);
   }
 
-  await app.vault.process(file, (content) => {
+  await app.vault.process(file, (content: string) => {
     const lines = content.split("\n");
     // Exact-match (trailing whitespace tolerated). No regex, no startsWith —
     // we only claim ownership of the line that exactly equals the configured
@@ -411,7 +411,7 @@ class DailyChecklistView extends ItemView {
           setIcon(handle, "grip-vertical");
           handle.addEventListener("mousedown", () => {
             dragHandleActive = true;
-            document.addEventListener("mouseup", () => { dragHandleActive = false; }, { once: true });
+            activeDocument.addEventListener("mouseup", () => { dragHandleActive = false; }, { once: true });
           });
 
           row.setAttribute("draggable", "true");
@@ -451,7 +451,7 @@ class DailyChecklistView extends ItemView {
                 this.plugin.saveSettings().then(() => {
                   this.renderChecklistItems(container, editMode, editBtn);
                   rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-                });
+                }).catch(console.error);
               }
             }
           });
@@ -472,9 +472,9 @@ class DailyChecklistView extends ItemView {
           this.plugin.saveSettings().then(() => {
             this.renderChecklistItems(container, editMode, editBtn);
             rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-          });
+          }).catch(console.error);
         };
-        const label = row.createEl("input") as HTMLInputElement;
+        const label = row.createEl("input");
         label.type = "text";
         label.value = item;
         label.className = "dc-checklist-edit-input";
@@ -493,12 +493,12 @@ class DailyChecklistView extends ItemView {
               this.plugin.saveSettings().then(() => {
                 this.renderChecklistItems(container, editMode, editBtn);
                 rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-              });
+              }).catch(console.error);
             }
           }
         };
       } else {
-        const cb = row.createEl("input") as HTMLInputElement;
+        const cb = row.createEl("input");
         cb.type = "checkbox";
         cb.checked = !!this.plugin.settings.checklistState.checked[item];
         cb.className = "dc-checklist-cb";
@@ -507,13 +507,13 @@ class DailyChecklistView extends ItemView {
           this.plugin.settings.checklistState.checked[item] = cb.checked;
           this.plugin.saveSettings().then(() => {
             rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-          });
+          }).catch(console.error);
           if (wasReset) {
             // Other rows may have been showing yesterday's checks — re-render
             // so the cleared state is reflected in the DOM.
             this.refresh();
           } else {
-            const labelEl = row.querySelector(".dc-checklist-label") as HTMLElement | null;
+            const labelEl = row.querySelector<HTMLElement>(".dc-checklist-label");
             if (labelEl) labelEl.toggleClass("dc-checked", cb.checked);
           }
         };
@@ -541,7 +541,7 @@ class DailyChecklistView extends ItemView {
           text: "✕",
           attr: { "aria-label": "Cancel" },
         });
-        const input = addRow.createEl("input") as HTMLInputElement;
+        const input = addRow.createEl("input");
         input.type = "text";
         input.placeholder = "New item…";
         input.className = "dc-checklist-edit-input";
@@ -558,7 +558,7 @@ class DailyChecklistView extends ItemView {
             this.plugin.saveSettings().then(() => {
               this.renderChecklistItems(container, true, editBtn);
               rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-            });
+            }).catch(console.error);
           } else {
             this.renderChecklistItems(container, true, editBtn);
           }
@@ -631,7 +631,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       );
 
     // ── Callout configuration ──────────────────────────────────────────────
-    containerEl.createEl("h3", { text: "Daily Checklist callout" });
+    new Setting(containerEl).setName("Daily Checklist callout").setHeading();
     const calloutNote = containerEl.createEl("p", { cls: "setting-item-description" });
     calloutNote.setText(
       "These settings control the exact callout header the plugin manages. " +
@@ -673,7 +673,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       );
 
     // ── Daily Notes ─────────────────────────────────────────────────────────
-    containerEl.createEl("h3", { text: "Daily Notes" });
+    new Setting(containerEl).setName("Daily Notes").setHeading();
 
     new Setting(containerEl)
       .setName("Daily notes folder")
@@ -705,7 +705,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       });
 
     // ── Checklist Items ─────────────────────────────────────────────────────
-    containerEl.createEl("h3", { text: "Checklist items" });
+    new Setting(containerEl).setName("Checklist items").setHeading();
 
     const clList = containerEl.createEl("div");
     const renderClList = () => {
@@ -722,7 +722,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
 
         grip.addEventListener("mousedown", () => {
           dragHandleActive = true;
-          document.addEventListener("mouseup", () => { dragHandleActive = false; }, { once: true });
+          activeDocument.addEventListener("mouseup", () => { dragHandleActive = false; }, { once: true });
         });
         grip.addEventListener("click", e => e.stopPropagation());
 
@@ -763,7 +763,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
                 renderClList();
                 this.plugin.refreshViews();
                 rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-              });
+              }).catch(console.error);
             }
           }
         });
@@ -800,7 +800,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
         tempSetting.settingEl.prepend(grip);
 
         tempSetting.nameEl.empty();
-        const input = tempSetting.nameEl.createEl("input") as HTMLInputElement;
+        const input = tempSetting.nameEl.createEl("input");
         input.type = "text";
         input.placeholder = "New item…";
         input.className = "dc-checklist-edit-input dc-settings-add-input";
@@ -821,7 +821,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
               renderClList();
               this.plugin.refreshViews();
               rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
-            });
+            }).catch(console.error);
           } else {
             tempSetting.settingEl.remove();
           }
@@ -880,8 +880,8 @@ export default class DailyChecklistPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "open-daily-checklist",
-      name: "Open Daily Checklist",
+      id: "open",
+      name: "Open",
       callback: async () => { await this.activateView(); },
     });
 
@@ -890,15 +890,16 @@ export default class DailyChecklistPlugin extends Plugin {
     // Reload state when the app returns to the foreground so two devices stay
     // in sync after the OS had backgrounded one of them. Read-only — never
     // writes to the daily note.
-    const onVisibilityChange = async () => {
-      if (document.hidden) return;
-      await this.loadSettings();
-      this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf => {
-        if (leaf.view instanceof DailyChecklistView) leaf.view.refresh();
-      });
+    const onVisibilityChange = () => {
+      if (activeDocument.hidden) return;
+      this.loadSettings().then(() => {
+        this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf => {
+          if (leaf.view instanceof DailyChecklistView) leaf.view.refresh();
+        });
+      }).catch(console.error);
     };
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    this.register(() => document.removeEventListener("visibilitychange", onVisibilityChange));
+    activeDocument.addEventListener("visibilitychange", onVisibilityChange);
+    this.register(() => activeDocument.removeEventListener("visibilitychange", onVisibilityChange));
 
     // Optional: ensure a Daily Checklist leaf exists in the right sidebar
     // when Obsidian starts, *without* stealing focus from whichever sidebar
@@ -923,11 +924,11 @@ export default class DailyChecklistPlugin extends Plugin {
   async activateView(): Promise<void> {
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE);
-    if (existing.length > 0) { workspace.revealLeaf(existing[0]); return; }
+    if (existing.length > 0) { await workspace.revealLeaf(existing[0]); return; }
     const leaf = workspace.getRightLeaf(false);
     if (leaf) {
       await leaf.setViewState({ type: VIEW_TYPE, active: true });
-      workspace.revealLeaf(leaf);
+      await workspace.revealLeaf(leaf);
     }
   }
 
@@ -945,8 +946,8 @@ export default class DailyChecklistPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const saved = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    const saved = (await this.loadData()) as Record<string, unknown> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved ?? {}) as DailyChecklistSettings;
 
     // ── checklistItems ────────────────────────────────────────────────────
     // Defaults seed only on first run (no saved key). An empty array is a
