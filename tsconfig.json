@@ -10,7 +10,7 @@
     "strict": true,
     "moduleResolution": "bundler",
     "skipLibCheck": true,
-    "lib": ["ES2018", "DOM"]
+    "lib": ["ES2019", "DOM"]
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]

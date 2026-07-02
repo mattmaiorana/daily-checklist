@@ -269,8 +269,8 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
   }
   getSuggestions(query: string): TFolder[] {
     const lower = query.toLowerCase();
-    return this.app.vault.getAllLoadedFiles()
-      .filter((f): f is TFolder => f instanceof TFolder && f.path.toLowerCase().includes(lower))
+    return this.app.vault.getAllFolders()
+      .filter(f => f.path.toLowerCase().includes(lower))
       .sort((a, b) => a.path.localeCompare(b.path))
       .slice(0, 200);
   }
@@ -288,8 +288,8 @@ class MarkdownFileSuggest extends AbstractInputSuggest<TFile> {
   }
   getSuggestions(query: string): TFile[] {
     const lower = query.toLowerCase();
-    return this.app.vault.getAllLoadedFiles()
-      .filter((f): f is TFile => f instanceof TFile && f.extension === "md" && f.path.toLowerCase().includes(lower))
+    return this.app.vault.getMarkdownFiles()
+      .filter(f => f.path.toLowerCase().includes(lower))
       .sort((a, b) => a.path.localeCompare(b.path))
       .slice(0, 200);
   }
@@ -631,7 +631,7 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       );
 
     // ── Callout configuration ──────────────────────────────────────────────
-    new Setting(containerEl).setName("Daily Checklist callout").setHeading();
+    new Setting(containerEl).setName("Callout").setHeading();
     const calloutNote = containerEl.createEl("p", { cls: "setting-item-description" });
     calloutNote.setText(
       "These settings control the exact callout header the plugin manages. " +
@@ -947,7 +947,7 @@ export default class DailyChecklistPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const saved = (await this.loadData()) as Record<string, unknown> | null;
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved ?? {}) as DailyChecklistSettings;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved ?? {});
 
     // ── checklistItems ────────────────────────────────────────────────────
     // Defaults seed only on first run (no saved key). An empty array is a

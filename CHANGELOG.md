@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.8] - 2026-07-01
+
+This patch release resolves a further round of Obsidian plugin-checker findings and simplifies the settings autocomplete.
+
+### Changed
+
+- Switched the folder autocomplete to `vault.getAllFolders()` and the template-file autocomplete to `vault.getMarkdownFiles()`, replacing the previous `getAllLoadedFiles()` + `instanceof` filtering. More direct and lets the API do the type narrowing.
+- Bumped `minAppVersion` from `1.6.0` to `1.7.2`. The awaited `workspace.revealLeaf()` signature and `vault.getAllFolders()` both require newer APIs than `1.6.0` declared; `1.7.2` is the correct floor.
+- Renamed the "Daily Checklist callout" settings heading to "Callout" — settings headings should not repeat the plugin name.
+- Raised the TypeScript `lib` from `ES2018` to `ES2019` so `String.prototype.trimEnd` is properly typed. Under `ES2018` the checker treated `trimEnd()` results as `any`, producing false unsafe-call warnings.
+- Removed a redundant `as DailyChecklistSettings` assertion on the settings merge in `loadSettings`.
+
+### Notes
+
+- No settings, daily-note write behavior, or user-visible functionality changed.
+
 ## [1.0.7] - 2026-07-01
 
 This patch release addresses plugin-checker warnings from the Obsidian community review.
