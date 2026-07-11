@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.0.9] - 2026-07-09
+
+This release hardens correctness and the daily-note write path based on a full-codebase review. No user-facing feature changes; no change to what the plugin writes to notes.
+
+### Fixed
+
+- **Duplicate item names no longer corrupt state.** Adding or renaming an item to a name already in the list is now rejected with a notice (at all three entry points). Previously, deleting one of two same-named items removed both, renames hit the wrong row, and both shared a single checked state.
+- **Items named like `Object.prototype` members are no longer permanently checked.** Checked-state reads now use an own-property guard (`isItemChecked`), so an item named `toString`, `constructor`, `valueOf`, etc. behaves normally.
+- **A hand-corrupted `data.json` can no longer silently break the writer.** `dailyNoteFolder`, `dailyNoteDateFormat`, and `dailyNoteTemplatePath` are now coerced to defaults when non-string, so the write path can't throw on `.trim()`. `writeChecklistToDailyNote` gained the same boolean type-guard the other toggles have.
+- **Midnight-boundary writes target the correct day.** Each mutation now captures a single timestamp and threads it through the daily reset and the note write, so a mutation that straddles local midnight can't write the previous day's checks into the new day's note.
+- **Foreground-sync no longer clobbers an unsaved mutation.** The visibility-change reload is skipped while a settings save is in flight.
+- **Daily-note writes are serialized.** Overlapping mutations now queue through a single promise chain, so a slower earlier write can't overwrite a newer state.
+- **Popout-window listener leak.** The `visibilitychange` handler captures its document once, so it always detaches from the document it attached to.
+
+### Changed
+
+- The settings-tab item editor no longer renders dead drag handles on mobile (drag-reorder is desktop-only, matching the sidebar).
+
+### Notes
+
+- Remaining low-priority review items (touchscreen-laptop drag gating, append-time trailing-whitespace trim, multi-leaf sidebar sync) are documented in `FUTURE_PLANS.md`.
+
 ## [1.0.8] - 2026-07-01
 
 This patch release resolves a further round of Obsidian plugin-checker findings and simplifies the settings autocomplete.

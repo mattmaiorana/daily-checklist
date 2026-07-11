@@ -97,26 +97,13 @@ When implemented:
 
 ## H. Visibilitychange race with in-flight saveSettings
 
-`onVisibilityChange` (`main.ts`) calls `await this.loadSettings()` on foreground. If a checklist mutation's `saveSettings` is in flight at that moment, `loadSettings` reads the pre-save snapshot from disk and overwrites the in-memory mutation. The next mutation then writes the stale state back, silently losing the original toggle.
-
-In practice this requires the user to background and foreground Obsidian within the ~10 ms `data.json` write window — essentially zero probability on a single-user, single-device workflow. The reset-on-date-rollover is idempotent and self-heals; only a non-reset toggle would be silently lost.
-
-A defensive fix would track in-flight saves via a `saving: Promise<void> | null` member and `await` it before reloading on visibility change. Five lines, no observable behavior change in the common case. Defer until needed.
+**Resolved in 1.0.9.** The plugin now tracks in-flight saves via a `pendingSaves` counter (incremented/decremented around `saveData` in `saveSettings`), and `onVisibilityChange` returns early while `hasPendingSave` is true rather than reloading. This closes the realistic ordering (a tap just before a foreground reload). A sub-millisecond interleave where the tap lands *during* the reload's `loadData` remains theoretically possible but is not worth further complexity on a single-user plugin.
 
 ## I. Duplicate checklist item names share state
 
-`checklistState.checked` is keyed by the raw item string. If the user adds two items with the same name `"Foo"`:
-- Both checkboxes toggle together when either is clicked.
-- Deleting either row removes both (the `filter(i => i !== "Foo")` removes all matches).
-- Renaming only updates the first match (via `indexOf`).
+**Resolved in 1.0.9** by prevention: add and rename now reject a name already present in `checklistItems` (with a `Notice`) at all three entry points (sidebar add/rename, settings add). Because items remain keyed by their raw string, forbidding duplicates keeps delete/rename/checked-state coherent without a `data.json` migration to per-item IDs.
 
-The plugin does not crash, and the daily-note callout output is consistent with the underlying state. The UX is surprising.
-
-Future fix options:
-- Use stable per-item IDs in the storage shape instead of raw-name keys (would require a `data.json` migration step).
-- Or, on add, append a disambiguator if the name already exists.
-
-Out of v1 scope.
+Residual (accepted): an item whose name collides with an `Object.prototype` member is handled for reads via `isItemChecked` (own-property + `=== true` guard), but an item literally named `__proto__` still cannot be *persistently* checked — the assignment `checked["__proto__"] = true` is a silent no-op on a plain object. Zero corruption, absurd input; not worth null-prototyping the `checked` map across the load/reset paths. Revisit only if per-item IDs are ever introduced.
 
 ## J. Settings tab does not auto-refresh on sidebar-driven changes
 
@@ -132,11 +119,15 @@ Fix later: track the live settings-tab instance on the plugin and call `renderCl
 
 A 200–500 ms debounce (using Obsidian's `debounce()` helper) would reduce this to one write per pause. Out of v1 scope.
 
-## L. No reorder UI on touch devices
+## L. Touch reorder gaps (`maxTouchPoints` heuristic)
 
-Drag-and-drop is correctly suppressed when `navigator.maxTouchPoints > 0` (HTML5 D&D's touch story is unreliable). But there's no replacement — touch users cannot reorder items.
+Drag-and-drop is suppressed when `navigator.maxTouchPoints > 0` (HTML5 D&D's touch story is unreliable). As of 1.0.9 both the sidebar **and** the settings-tab item editor gate their drag affordances on this check, so mobile no longer shows dead grips in settings (previously the settings grips rendered but did nothing). Two gaps remain:
+
+- **No touch replacement.** Touch users still cannot reorder items at all.
+- **Touchscreen-laptop false positive.** `maxTouchPoints > 0` is also true on desktop/laptop touchscreens even when a mouse is attached, so those users lose mouse drag-reorder unnecessarily. Switching the gate from `maxTouchPoints` to Obsidian's `Platform.isMobile` would fix this, but it changes behavior on hybrid devices and touches both surfaces, so treat it as a deliberate scoped pass.
 
 Possible solutions later:
+- Switch the gate to `Platform.isMobile` (addresses the touchscreen-laptop case).
 - Long-press to enter a reorder mode with up/down buttons.
 - Always-show up/down arrows next to each row in edit mode on touch.
 - A "Move up" / "Move down" command in the settings tab item list.
@@ -172,3 +163,17 @@ The lockfile pins the specific resolved version installed at the time, so `npm c
 `setIcon(handle, "grip-vertical")` is called once per row per render. For a 5-item checklist this is invisible; for very long checklists, it embeds a full SVG O(n) times per render. A pre-built icon node (cloned per row) or a CSS background-image would eliminate the per-row injection.
 
 Refactor; no observable behavior change in typical use.
+
+## R. Append path trims trailing whitespace outside the managed callout
+
+When `rewriteChecklistSection` appends a new callout to a note that has no matching header yet, it writes `content.trimEnd() + "\n\n" + callout`. The `trimEnd()` strips any trailing blank lines / trailing whitespace the note already had — a (tiny) modification of content *outside* the managed callout boundary. The replace path (matched header) is unaffected; this is append-only.
+
+In practice this is almost certainly desirable (no one wants trailing blank lines), and it's the only place the plugin touches bytes it doesn't own. If strict boundary purity is ever wanted, strip only trailing newline runs (`content.replace(/\n+$/, "")`) instead of all trailing whitespace, or document the behavior explicitly. Not a safety concern — content is only *removed* at the very end of the file, never inside existing text.
+
+## S. Multiple sidebar leaves of the view desync on mutation
+
+Sidebar mutation handlers re-render only their own container (or do a targeted label toggle), and do **not** call `refreshViews()`. Obsidian allows more than one leaf of the same view type (e.g. the user drags a second Daily Checklist leaf into the left sidebar). In that case, checking/adding/renaming in one leaf leaves the other showing stale checks/items until a `visibilitychange`, a settings-tab mutation, or a reopen refreshes it.
+
+No data corruption — a mutation from the stale leaf still operates on the fresh `plugin.settings`; only the display lags. This is the sidebar-leaf analogue of item **J** (settings tab stale on sidebar edits).
+
+Deferred because the obvious fix (have sidebar mutations call `refreshViews()`) re-renders *all* leaves, which restarts each in non-edit mode and would kick a second leaf out of edit mode mid-edit. A correct fix should skip the originating leaf and preserve edit state. Low value for a single-user, single-leaf workflow; revisit if multi-leaf use becomes common.

@@ -100,8 +100,7 @@ function buildCalloutHeader(settings: DailyChecklistSettings): string {
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-function todayStr(): string {
-  const d = new Date();
+function todayStr(d: Date = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -141,6 +140,15 @@ function isSafeVaultPath(path: string): boolean {
 // terminate the callout extent and orphan a fragment in the daily note.
 function sanitizeChecklistItemForCallout(item: string): string {
   return String(item ?? "").replace(/[\r\n]+/g, " ").trim();
+}
+
+// Read an item's checked flag without resolving inherited Object.prototype
+// members. `checked` is a plain object keyed by item name, so a bare
+// `checked["toString"]` (or "constructor", "valueOf", …) would return an
+// inherited function and render that item as permanently checked. Guard every
+// read with an own-property check and require a literal `true`.
+function isItemChecked(state: ChecklistState, item: string): boolean {
+  return Object.prototype.hasOwnProperty.call(state.checked, item) && state.checked[item] === true;
 }
 
 async function ensureParentFolderExists(app: App, path: string): Promise<void> {
@@ -215,10 +223,11 @@ async function getOrCreateDailyNote(
 
 async function rewriteChecklistSection(
   app: App,
-  settings: DailyChecklistSettings
+  settings: DailyChecklistSettings,
+  date: Date = new Date()
 ): Promise<void> {
   if (!settings.writeChecklistToDailyNote) return;
-  const file = await getOrCreateDailyNote(app, settings);
+  const file = await getOrCreateDailyNote(app, settings, date);
 
   // The configured header is the single source of truth. We do not match any
   // other callout type, title, or fold marker — and we re-emit exactly this
@@ -228,7 +237,7 @@ async function rewriteChecklistSection(
 
   const itemLines: string[] = [];
   for (const item of settings.checklistItems) {
-    const mark = settings.checklistState.checked[item] ? "x" : " ";
+    const mark = isItemChecked(settings.checklistState, item) ? "x" : " ";
     // Sanitize the emitted text so a corrupted/hand-edited item name
     // containing CR/LF can't terminate the callout extent. The map key
     // (`item`) stays raw — only the rendered line is sanitized.
@@ -444,13 +453,14 @@ class DailyChecklistView extends ItemView {
             if (src !== -1 && insertAt !== -1) {
               const adjustedInsert = src < insertAt ? insertAt - 1 : insertAt;
               if (adjustedInsert !== src) {
-                this.plugin.resetIfNewDay();
+                const now = new Date();
+                this.plugin.resetIfNewDay(now);
                 const arr = this.plugin.settings.checklistItems;
                 const [moved] = arr.splice(src, 1);
                 arr.splice(adjustedInsert, 0, moved);
                 this.plugin.saveSettings().then(() => {
                   this.renderChecklistItems(container, editMode, editBtn);
-                  rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+                  this.plugin.queueRewrite(now);
                 }).catch(console.error);
               }
             }
@@ -466,12 +476,13 @@ class DailyChecklistView extends ItemView {
 
         const delBtn = row.createEl("button", { cls: "dc-icon-btn dc-delete-btn", text: "✕" });
         delBtn.onclick = () => {
-          this.plugin.resetIfNewDay();
+          const now = new Date();
+          this.plugin.resetIfNewDay(now);
           this.plugin.settings.checklistItems = this.plugin.settings.checklistItems.filter(i => i !== item);
           delete this.plugin.settings.checklistState.checked[item];
           this.plugin.saveSettings().then(() => {
             this.renderChecklistItems(container, editMode, editBtn);
-            rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+            this.plugin.queueRewrite(now);
           }).catch(console.error);
         };
         const label = row.createEl("input");
@@ -481,18 +492,24 @@ class DailyChecklistView extends ItemView {
         label.onblur = () => {
           const newVal = label.value.trim();
           if (newVal && newVal !== item) {
+            if (this.plugin.settings.checklistItems.includes(newVal)) {
+              new Notice(`Daily Checklist: "${newVal}" is already in the list.`);
+              this.renderChecklistItems(container, editMode, editBtn);
+              return;
+            }
             const idx = this.plugin.settings.checklistItems.indexOf(item);
             if (idx !== -1) {
-              this.plugin.resetIfNewDay();
+              const now = new Date();
+              this.plugin.resetIfNewDay(now);
               this.plugin.settings.checklistItems[idx] = newVal;
               const checked = this.plugin.settings.checklistState.checked;
-              if (checked[item] !== undefined) {
+              if (Object.prototype.hasOwnProperty.call(checked, item)) {
                 checked[newVal] = checked[item];
                 delete checked[item];
               }
               this.plugin.saveSettings().then(() => {
                 this.renderChecklistItems(container, editMode, editBtn);
-                rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+                this.plugin.queueRewrite(now);
               }).catch(console.error);
             }
           }
@@ -500,13 +517,14 @@ class DailyChecklistView extends ItemView {
       } else {
         const cb = row.createEl("input");
         cb.type = "checkbox";
-        cb.checked = !!this.plugin.settings.checklistState.checked[item];
+        cb.checked = isItemChecked(this.plugin.settings.checklistState, item);
         cb.className = "dc-checklist-cb";
         cb.onchange = () => {
-          const wasReset = this.plugin.resetIfNewDay();
+          const now = new Date();
+          const wasReset = this.plugin.resetIfNewDay(now);
           this.plugin.settings.checklistState.checked[item] = cb.checked;
           this.plugin.saveSettings().then(() => {
-            rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+            this.plugin.queueRewrite(now);
           }).catch(console.error);
           if (wasReset) {
             // Other rows may have been showing yesterday's checks — re-render
@@ -518,7 +536,7 @@ class DailyChecklistView extends ItemView {
           }
         };
         const labelEl = row.createEl("label", { cls: "dc-checklist-label", text: item });
-        if (this.plugin.settings.checklistState.checked[item]) labelEl.addClass("dc-checked");
+        if (isItemChecked(this.plugin.settings.checklistState, item)) labelEl.addClass("dc-checked");
       }
     });
 
@@ -553,11 +571,17 @@ class DailyChecklistView extends ItemView {
           done = true;
           const val = save ? input.value.trim() : "";
           if (val) {
-            this.plugin.resetIfNewDay();
+            if (this.plugin.settings.checklistItems.includes(val)) {
+              new Notice(`Daily Checklist: "${val}" is already in the list.`);
+              this.renderChecklistItems(container, true, editBtn);
+              return;
+            }
+            const now = new Date();
+            this.plugin.resetIfNewDay(now);
             this.plugin.settings.checklistItems.push(val);
             this.plugin.saveSettings().then(() => {
               this.renderChecklistItems(container, true, editBtn);
-              rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+              this.plugin.queueRewrite(now);
             }).catch(console.error);
           } else {
             this.renderChecklistItems(container, true, editBtn);
@@ -586,6 +610,10 @@ class DailyChecklistSettingTab extends PluginSettingTab {
   constructor(app: App, plugin: DailyChecklistPlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  private get isTouchDevice(): boolean {
+    return navigator.maxTouchPoints > 0;
   }
 
   display(): void {
@@ -714,6 +742,9 @@ class DailyChecklistSettingTab extends PluginSettingTab {
       this.plugin.settings.checklistItems.forEach((item, idx) => {
         const setting = new Setting(clList).setName(item);
 
+        // Drag-reorder is desktop-only. HTML5 drag events don't fire on touch,
+        // so on mobile the grip + draggable affordance would be dead UI.
+        if (!this.isTouchDevice) {
         let dragHandleActive = false;
         const grip = setting.settingEl.createEl("span", { cls: "dc-drag-handle" });
         setIcon(grip, "grip-vertical");
@@ -755,14 +786,15 @@ class DailyChecklistSettingTab extends PluginSettingTab {
           if (src !== -1 && insertAt !== -1) {
             const adjusted = src < insertAt ? insertAt - 1 : insertAt;
             if (adjusted !== src) {
-              this.plugin.resetIfNewDay();
+              const now = new Date();
+              this.plugin.resetIfNewDay(now);
               const arr = this.plugin.settings.checklistItems;
               const [moved] = arr.splice(src, 1);
               arr.splice(adjusted, 0, moved);
               this.plugin.saveSettings().then(() => {
                 renderClList();
                 this.plugin.refreshViews();
-                rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+                this.plugin.queueRewrite(now);
               }).catch(console.error);
             }
           }
@@ -774,15 +806,17 @@ class DailyChecklistSettingTab extends PluginSettingTab {
           clList.querySelectorAll<HTMLElement>(".dc-drag-over, .dc-drag-over-bottom")
             .forEach(el => el.classList.remove("dc-drag-over", "dc-drag-over-bottom"));
         });
+        }
 
         setting.addButton(btn => btn.setButtonText("Delete").setWarning().onClick(async () => {
-          this.plugin.resetIfNewDay();
+          const now = new Date();
+          this.plugin.resetIfNewDay(now);
           this.plugin.settings.checklistItems = this.plugin.settings.checklistItems.filter(i => i !== item);
           delete this.plugin.settings.checklistState.checked[item];
           await this.plugin.saveSettings();
           renderClList();
           this.plugin.refreshViews();
-          rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+          this.plugin.queueRewrite(now);
         }));
       });
     };
@@ -796,8 +830,10 @@ class DailyChecklistSettingTab extends PluginSettingTab {
         // slot as the existing checklist item rows. The unsaved item is not
         // draggable, so the drag-handle slot is an empty placeholder.
         const tempSetting = new Setting(clList);
-        const grip = tempSetting.settingEl.createEl("span", { cls: "dc-drag-handle dc-row-spacer" });
-        tempSetting.settingEl.prepend(grip);
+        if (!this.isTouchDevice) {
+          const grip = tempSetting.settingEl.createEl("span", { cls: "dc-drag-handle dc-row-spacer" });
+          tempSetting.settingEl.prepend(grip);
+        }
 
         tempSetting.nameEl.empty();
         const input = tempSetting.nameEl.createEl("input");
@@ -811,16 +847,22 @@ class DailyChecklistSettingTab extends PluginSettingTab {
           done = true;
           const val = save ? input.value.trim() : "";
           if (val) {
+            if (this.plugin.settings.checklistItems.includes(val)) {
+              new Notice(`Daily Checklist: "${val}" is already in the list.`);
+              renderClList();
+              return;
+            }
             // Leave the temp row in place — renderClList() will clear and
             // rebuild the items list in one pass, replacing the temp row
             // with the saved row without an intermediate empty frame
             // (which would briefly push the "+ Add item" button upward).
-            this.plugin.resetIfNewDay();
+            const now = new Date();
+            this.plugin.resetIfNewDay(now);
             this.plugin.settings.checklistItems.push(val);
             this.plugin.saveSettings().then(() => {
               renderClList();
               this.plugin.refreshViews();
-              rewriteChecklistSection(this.app, this.plugin.settings).catch(console.error);
+              this.plugin.queueRewrite(now);
             }).catch(console.error);
           } else {
             tempSetting.settingEl.remove();
@@ -851,6 +893,26 @@ class DailyChecklistSettingTab extends PluginSettingTab {
 export default class DailyChecklistPlugin extends Plugin {
   settings!: DailyChecklistSettings;
 
+  // Serializes daily-note rewrites so overlapping mutations can't land out of
+  // order — each queued step reads the latest settings and runs to completion
+  // before the next begins. Errors are logged and never break the chain.
+  private writeQueue: Promise<void> = Promise.resolve();
+
+  // Count of saveSettings() calls in flight. The foreground-sync reload skips
+  // while this is non-zero so it can't clobber a not-yet-persisted mutation.
+  private pendingSaves = 0;
+
+  get hasPendingSave(): boolean {
+    return this.pendingSaves > 0;
+  }
+
+  /** Enqueue a daily-note rewrite. Rewrites run one at a time in call order. */
+  queueRewrite(date: Date = new Date()): void {
+    this.writeQueue = this.writeQueue
+      .then(() => rewriteChecklistSection(this.app, this.settings, date))
+      .catch(console.error);
+  }
+
   refreshViews(): void {
     this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf => {
       if (leaf.view instanceof DailyChecklistView) leaf.view.render();
@@ -861,8 +923,8 @@ export default class DailyChecklistPlugin extends Plugin {
    *  a reset happened. Mutation is in-memory only — the caller is responsible
    *  for persisting (so we batch the reset with whatever mutation triggered it
    *  and avoid an extra data.json write). */
-  resetIfNewDay(): boolean {
-    const today = todayStr();
+  resetIfNewDay(date: Date = new Date()): boolean {
+    const today = todayStr(date);
     if (this.settings.checklistState.date !== today) {
       this.settings.checklistState = { date: today, checked: {} };
       return true;
@@ -890,16 +952,25 @@ export default class DailyChecklistPlugin extends Plugin {
     // Reload state when the app returns to the foreground so two devices stay
     // in sync after the OS had backgrounded one of them. Read-only — never
     // writes to the daily note.
+    // Capture the document once so the removal targets the same one we added
+    // to. `activeDocument` is a live getter for the focused window's document,
+    // so evaluating it again at unload (e.g. while a popout is focused) could
+    // target the wrong document and leak the listener on the main window.
+    const doc = activeDocument;
     const onVisibilityChange = () => {
-      if (activeDocument.hidden) return;
+      if (doc.hidden) return;
+      // Don't reload while a mutation's save is still in flight — a wholesale
+      // loadSettings() would replace this.settings with the pre-mutation disk
+      // snapshot and clobber the unsaved change.
+      if (this.hasPendingSave) return;
       this.loadSettings().then(() => {
         this.app.workspace.getLeavesOfType(VIEW_TYPE).forEach(leaf => {
           if (leaf.view instanceof DailyChecklistView) leaf.view.refresh();
         });
       }).catch(console.error);
     };
-    activeDocument.addEventListener("visibilitychange", onVisibilityChange);
-    this.register(() => activeDocument.removeEventListener("visibilitychange", onVisibilityChange));
+    doc.addEventListener("visibilitychange", onVisibilityChange);
+    this.register(() => doc.removeEventListener("visibilitychange", onVisibilityChange));
 
     // Optional: ensure a Daily Checklist leaf exists in the right sidebar
     // when Obsidian starts, *without* stealing focus from whichever sidebar
@@ -991,6 +1062,23 @@ export default class DailyChecklistPlugin extends Plugin {
     if (typeof this.settings.showSidebarEditLink !== "boolean") {
       this.settings.showSidebarEditLink = DEFAULT_SETTINGS.showSidebarEditLink;
     }
+    if (typeof this.settings.writeChecklistToDailyNote !== "boolean") {
+      this.settings.writeChecklistToDailyNote = DEFAULT_SETTINGS.writeChecklistToDailyNote;
+    }
+
+    // ── String path/format fields ─────────────────────────────────────────
+    // A non-string persisted value (hand-edited data.json) would otherwise make
+    // folder.trim() / fmt.trim() throw inside the writer, silently breaking
+    // every daily-note write. Coerce to defaults so the writer stays crash-proof.
+    if (typeof this.settings.dailyNoteFolder !== "string") {
+      this.settings.dailyNoteFolder = DEFAULT_SETTINGS.dailyNoteFolder;
+    }
+    if (typeof this.settings.dailyNoteDateFormat !== "string") {
+      this.settings.dailyNoteDateFormat = DEFAULT_SETTINGS.dailyNoteDateFormat;
+    }
+    if (typeof this.settings.dailyNoteTemplatePath !== "string") {
+      this.settings.dailyNoteTemplatePath = DEFAULT_SETTINGS.dailyNoteTemplatePath;
+    }
 
     // ── Callout-config string fields ──────────────────────────────────────
     // Sanitize via the same helpers used at write time, so the persisted
@@ -1005,6 +1093,11 @@ export default class DailyChecklistPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    this.pendingSaves++;
+    try {
+      await this.saveData(this.settings);
+    } finally {
+      this.pendingSaves--;
+    }
   }
 }
